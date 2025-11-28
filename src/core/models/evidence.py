@@ -31,6 +31,7 @@ class Evidence(BaseModel):
     """证据数据结构"""
     
     id: str = Field(default_factory=lambda: str(uuid4()))
+    title: Optional[str] = Field(None, description="标题（用于搜索结果）")
     type: EvidenceType = EvidenceType.POST
     content: str = Field(..., description="证据正文内容")
     source: EvidenceSource = EvidenceSource.UNKNOWN

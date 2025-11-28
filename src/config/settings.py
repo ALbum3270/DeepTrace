@@ -21,5 +21,11 @@ class Settings:
     
     # Comment Triage
     comment_promotion_threshold: float = 0.7
+    
+    # Fetcher Configuration
+    fetcher_mode = os.getenv("FETCHER_MODE", "auto")  # auto / mock / serpapi
+    serpapi_key = os.getenv("SERPAPI_KEY", "")
+    serpapi_engine = os.getenv("SERPAPI_ENGINE", "google")
+    serpapi_num_results = int(os.getenv("SERPAPI_NUM_RESULTS", "10"))
 
 settings = Settings()

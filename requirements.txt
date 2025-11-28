@@ -5,3 +5,5 @@ pydantic
 httpx
 pytest
 python-dotenv
+google-search-results
+
