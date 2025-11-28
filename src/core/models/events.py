@@ -21,6 +21,7 @@ class EventNode(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid4()))
     time: Optional[datetime] = Field(None, description="事件发生时间（可为空）")
     title: str = Field(..., description="简短标题，如'首个负面反馈出现'")
+    source: Optional[str] = Field(None, description="消息来源（如：新华社、微博用户@XXX、内部文件）")
     description: str = Field(..., description="详细描述")
     actors: List[str] = Field(default_factory=list, description="参与主体列表")
     tags: List[str] = Field(default_factory=list, description="标签，如 origin/explosion/brand_response")

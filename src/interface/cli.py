@@ -33,6 +33,8 @@ def _render_report(
         for event in timeline.events:
             time_str = event.time.strftime('%Y-%m-%d %H:%M') if event.time else "时间未知"
             report += f"### {time_str} - {event.title}\n"
+            if event.source:
+                report += f"- **来源**: {event.source}\n"
             report += f"- **摘要**: {event.description}\n"
             report += f"- **置信度**: {event.confidence:.2f} ({event.status.value})\n"
             if event.evidence_ids:
