@@ -15,6 +15,10 @@ output*.txt
 test_output.txt
 *.log
 
+# Data runs (ignore by default, manually add important cases)
+data/runs/*
+!data/runs/.gitkeep
+
 # System
 .DS_Store
 Thumbs.db
