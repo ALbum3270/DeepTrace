@@ -11,6 +11,34 @@ from ..llm.factory import init_llm
 from langchain_core.prompts import ChatPromptTemplate
 
 
+def _sanitize_time_string(time_str: str) -> Optional[str]:
+    """
+    清理和标准化时间字符串为 ISO 8601 格式。
+    
+    Returns:
+        标准化后的时间字符串，或 None（如果无法解析）
+    """
+    if not time_str or not isinstance(time_str, str):
+        return None
+    
+    time_str = time_str.strip()
+    
+    # 空字符串 -> None
+    if not time_str:
+        return None
+    
+    # 不完整的日期（如 "2024-04"）-> 补全为月初
+    if len(time_str) == 7 and time_str.count('-') == 1:
+        return f"{time_str}-01"
+    
+    # 已经是标准格式 -> 直接返回
+    if len(time_str) >= 10 and time_str[4] == '-' and time_str[7] == '-':
+        return time_str
+    
+    # 其他情况 -> 返回 None（让 LLM 学习）
+    return None
+
+
 async def extract_event_from_evidence(evidence: Evidence) -> Optional[EventNode]:
     """使用 LLM（Qwen）通过 Function Calling 提取结构化事件信息。
 
@@ -53,7 +81,9 @@ Title: {evidence.title if evidence.title else 'N/A'}
             if isinstance(result, dict) and result.get("time"):
                 from datetime import datetime
                 try:
-                    time_value = datetime.fromisoformat(result["time"])
+                    time_str = _sanitize_time_string(result["time"])
+                    if time_str:
+                        time_value = datetime.fromisoformat(time_str)
                 except Exception:
                     pass
             event = EventNode(
@@ -95,7 +125,9 @@ Title: {evidence.title if evidence.title else 'N/A'}
                 if data.get("time"):
                     from datetime import datetime
                     try:
-                        time_value = datetime.fromisoformat(data["time"])
+                        time_str = _sanitize_time_string(data["time"])
+                        if time_str:
+                            time_value = datetime.fromisoformat(time_str)
                     except Exception:
                         pass
                 

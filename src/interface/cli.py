@@ -10,6 +10,7 @@ from ..core.storage import StorageManager
 from ..core.models.timeline import Timeline
 from ..core.models.evidence import Evidence
 from ..core.models.comments import CommentScore
+from ..agents.report_writer import write_narrative_report
 
 def _render_report(
     topic: str,
@@ -184,7 +185,14 @@ async def run_analysis(query: str):
     storage.save_evidences(run_dir, evidences)
     storage.save_report(run_dir, report_md)
     
-    print(f"✅ 分析完成！报告已生成: {run_dir / 'report.md'}")
+    # 生成叙事性报告
+    print(f"\n📝 正在生成叙事性调查报告...")
+    narrative_report_md = await write_narrative_report(query, timeline, evidences)
+    (run_dir / "narrative_report.md").write_text(narrative_report_md, encoding="utf-8")
+    
+    print(f"✅ 分析完成！")
+    print(f"   - 结构化报告: {run_dir / 'report.md'}")
+    print(f"   - 调查报告文章: {run_dir / 'narrative_report.md'}")
 
 def main():
     parser = argparse.ArgumentParser(
