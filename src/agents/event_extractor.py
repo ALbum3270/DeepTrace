@@ -149,6 +149,12 @@ Title: {evidence.title if evidence.title else 'N/A'}
                 raw_chain = prompt | client
                 raw_result = await raw_chain.ainvoke({})
                 content = raw_result.content if hasattr(raw_result, 'content') else str(raw_result)
+                
+                # 验证 content 不为空
+                if not content or not content.strip():
+                    print("[WARN] LLM returned empty response, skipping this evidence")
+                    return None
+                
                 data = json.loads(content)
                 
                 # 如果 LLM 返回了嵌套结构 {"EventNode": {...}} 或 {"event_node": {...}}，提取内层
@@ -180,9 +186,12 @@ Title: {evidence.title if evidence.title else 'N/A'}
                     evidence_ids=[evidence.id]
                 )
                 return event
+            except json.JSONDecodeError:
+                # JSON 解析失败，静默跳过（不打印 traceback）
+                print("[WARN] Failed to parse LLM response as JSON, skipping this evidence")
+                return None
             except Exception as e2:
-                print(f"[ERROR] Fallback parsing also failed: {e2}")
-                import traceback
-                traceback.print_exc()
+                print(f"[WARN] Fallback parsing failed: {str(e2)[:100]}")
+                return None
         
         return None
