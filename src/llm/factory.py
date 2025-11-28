@@ -16,17 +16,17 @@ def init_llm(temperature: float = 0.0) -> BaseChatModel:
     Returns:
         BaseChatModel: LangChain 聊天模型实例
     """
-    if not settings.OPENAI_API_KEY:
+    if not settings.openai_api_key:
         # 在没有 Key 的情况下（比如测试环境），可以抛出警告或返回 Mock
         # 这里为了简单，如果没 Key 可能会报错，但在 CLI 运行时会显式检查
         pass
 
     return ChatOpenAI(
-        api_key=settings.OPENAI_API_KEY,
-        base_url=settings.OPENAI_BASE_URL,
-        model=settings.MODEL_NAME,
+        api_key=settings.openai_api_key,
+        base_url=settings.openai_base_url,
+        model=settings.model_name,
         temperature=temperature,
         # 显式指定 openai_api_key 参数，防止 langchain 自动读取环境变量有时不一致
-        openai_api_key=settings.OPENAI_API_KEY,
-        openai_api_base=settings.OPENAI_BASE_URL,
+        openai_api_key=settings.openai_api_key,
+        openai_api_base=settings.openai_base_url,
     )
