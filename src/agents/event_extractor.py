@@ -25,9 +25,11 @@ async def extract_event_from_evidence(evidence: Evidence) -> Optional[EventNode]
     # 构造完整的提示内容（直接格式化，避免变量占位）
     user_message = f"""Evidence Content: {evidence.content}
 Publish Time: {evidence.publish_time}
-Source: {evidence.source.value}
+Source Type: {evidence.source.value}
+URL: {evidence.url if evidence.url else 'N/A'}
+Title: {evidence.title if evidence.title else 'N/A'}
 
-请分析以上证据，提取其中描述的关键事件。"""
+请分析以上证据，提取其中描述的关键事件。注意：Source Type 只是大类（news/weibo/xhs），请从 URL、Title 或 Content 中推断具体的媒体名称（如：新华社、人民日报、BBC、微博用户@XXX）。"""
 
     prompt = ChatPromptTemplate.from_messages([
         ("system", EVENT_EXTRACTOR_SYSTEM_PROMPT),
