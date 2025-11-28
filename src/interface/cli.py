@@ -43,8 +43,14 @@ def _render_report(
                 related_evs = [e for e in evidences if e.id in event.evidence_ids]
                 for rev in related_evs:
                     source_name = rev.source.value if hasattr(rev.source, 'value') else str(rev.source)
-                    content_preview = rev.content[:50] + "..." if len(rev.content) > 50 else rev.content
-                    report += f"  - [{source_name}] {content_preview}\n"
+                    # 优先显示 URL 链接，如果没有 URL 则显示简短摘要
+                    if rev.url:
+                        # Markdown 链接格式：[来源](URL)
+                        report += f"  - [{source_name}]({rev.url})\n"
+                    else:
+                        # 降级：显示内容摘要
+                        content_preview = rev.content[:50] + "..." if len(rev.content) > 50 else rev.content
+                        report += f"  - [{source_name}] {content_preview}\n"
             report += "\n"
     else:
         report += "（未生成有效时间线）\n\n"
