@@ -35,6 +35,7 @@ class CommentScore(BaseModel):
     - coordination: 协调性（是否呼应其他评论）
     """
     
+    evidence_id: str = Field(..., description="关联的证据ID")
     comment_id: str = Field(..., description="关联的评论ID")
     novelty: float = Field(default=0.0, ge=0.0, le=1.0, description="新颖性")
     evidence: float = Field(default=0.0, ge=0.0, le=1.0, description="证据性")
@@ -45,6 +46,7 @@ class CommentScore(BaseModel):
     total_score: float = Field(default=0.0, ge=0.0, le=1.0, description="综合得分")
     tags: List[str] = Field(default_factory=list, description="标签，如 new_entity/contradiction")
     reason: str = Field(default="", description="打分理由")
+    rationale: str = Field(default="", description="LLM 给出的详细理由")
     
     def calculate_total(self, weights: Optional[dict] = None) -> float:
         """

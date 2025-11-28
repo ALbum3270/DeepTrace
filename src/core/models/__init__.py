@@ -17,3 +17,6 @@ __all__ = [
     "Comment",
     "CommentScore",
 ]
+
+# Resolve ForwardRefs
+Evidence.model_rebuild()

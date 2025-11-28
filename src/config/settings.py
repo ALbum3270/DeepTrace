@@ -18,5 +18,8 @@ class Settings:
     # 项目配置
     project_name = "DeepTrace"
     debug = os.getenv("DEBUG", "False").lower() == "true"
+    
+    # Comment Triage
+    comment_promotion_threshold: float = 0.7
 
 settings = Settings()

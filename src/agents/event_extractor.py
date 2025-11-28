@@ -20,42 +20,27 @@ async def extract_event_from_evidence(evidence: Evidence) -> Optional[EventNode]
     Returns:
         EventNode 实例，或在失败时返回 None。
     """
-    # 初始化统一的 LLM 客户端
     client = init_llm()
 
-    # 定义 EventNode 的 JSON Schema（用于 Function Calling）
-    event_schema = {
-        "type": "object",
-        "properties": {
-            "title": {"type": "string", "description": "事件的简短标题，如'首个负面反馈出现'"},
-            "description": {"type": "string", "description": "事件的详细描述"},
-            "time": {"type": "string", "description": "事件发生时间（ISO格式），如果无法确定则为null", "nullable": True},
-            "actors": {"type": "array", "items": {"type": "string"}, "description": "参与主体列表（人、机构、品牌）"},
-            "tags": {"type": "array", "items": {"type": "string"}, "description": "事件标签，如 origin/explosion/brand_response"},
-            "status": {"type": "string", "enum": ["confirmed", "inferred", "hypothesis"], "description": "事件状态：confirmed（确认发生）、inferred（推测）、hypothesis（假设）"},
-            "confidence": {"type": "number", "minimum": 0.0, "maximum": 1.0, "description": "置信度（0.0 ~ 1.0）"}
-        },
-        "required": ["title", "description", "status", "confidence"]
-    }
+    # 构造完整的提示内容（直接格式化，避免变量占位）
+    user_message = f"""Evidence Content: {evidence.content}
+Publish Time: {evidence.publish_time}
+Source: {evidence.source.value}
 
-    # 构造系统+用户消息的 Prompt
-    user_message = f"""Evidence Content: {evidence.content}\nPublish Time: {evidence.publish_time}\nSource: {evidence.source.value}\n\n请分析以上证据，提取其中描述的关键事件。"""
+请分析以上证据，提取其中描述的关键事件。"""
+
     prompt = ChatPromptTemplate.from_messages([
         ("system", EVENT_EXTRACTOR_SYSTEM_PROMPT),
         ("user", user_message)
     ])
 
     try:
-        # 将 LLM 包装为结构化输出模型
-        structured_llm = client.with_structured_output(event_schema)
-        # 组合 Prompt 与 LLM，得到 RunnableSequence
+        # 使用结构化输出
+        structured_llm = client.with_structured_output(EventNode)
         chain = prompt | structured_llm
-        # 调用链式执行，传入证据信息
-        result = await chain.ainvoke({
-            "content": evidence.content,
-            "publish_time": str(evidence.publish_time),
-            "source": evidence.source.value
-        })
+        
+        # 调用链式执行（不传递变量，因为已经在 prompt 中格式化）
+        result = await chain.ainvoke({})
 
         # result 可能是 EventNode 实例或普通 dict
         if isinstance(result, EventNode):
@@ -80,13 +65,52 @@ async def extract_event_from_evidence(evidence: Evidence) -> Optional[EventNode]
                 evidence_ids=[evidence.id]
             )
         
-        # 确保 evidence_ids 被正确设置（针对直接返回 EventNode 的情况）
+        # 确保 evidence_ids 被正确设置
         if event and not event.evidence_ids:
             event.evidence_ids = [evidence.id]
             
         return event
     except Exception as e:
-        print(f"[ERROR] Event extraction failed: {e}")
-        import traceback
-        traceback.print_exc()
+        error_msg = str(e)
+        print(f"[ERROR] Event extraction failed: {error_msg[:200]}")
+        
+        # 检查是否是嵌套 JSON 问题
+        if "Field required" in error_msg and "EventNode" in error_msg:
+            print("[WARN] Detected nested JSON response, attempting to fix...")
+            try:
+                # 尝试获取原始响应并手动解析
+                raw_chain = prompt | client
+                raw_result = await raw_chain.ainvoke({})
+                content = raw_result.content if hasattr(raw_result, 'content') else str(raw_result)
+                data = json.loads(content)
+                
+                # 如果 LLM 返回了嵌套结构 {"EventNode": {...}}，提取内层
+                if "EventNode" in data and isinstance(data["EventNode"], dict):
+                    data = data["EventNode"]
+                
+                # 手动构造 EventNode
+                time_value = None
+                if data.get("time"):
+                    from datetime import datetime
+                    try:
+                        time_value = datetime.fromisoformat(data["time"])
+                    except Exception:
+                        pass
+                
+                event = EventNode(
+                    title=data.get("title", "未知事件"),
+                    description=data.get("description", ""),
+                    time=time_value,
+                    actors=data.get("actors", []),
+                    tags=data.get("tags", []),
+                    status=EventStatus(data.get("status", "confirmed")),
+                    confidence=data.get("confidence", 0.5),
+                    evidence_ids=[evidence.id]
+                )
+                return event
+            except Exception as e2:
+                print(f"[ERROR] Fallback parsing also failed: {e2}")
+                import traceback
+                traceback.print_exc()
+        
         return None

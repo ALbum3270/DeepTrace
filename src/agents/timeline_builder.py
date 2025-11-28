@@ -14,10 +14,11 @@ def build_timeline(events: List[EventNode]) -> Timeline:
         if not hasattr(ev, "evidence_ids") or ev.evidence_ids is None:
             ev.evidence_ids = []  # type: ignore[attr-defined]
 
-    # Sort events by time; if time is None, use created_at as fallback
+    from datetime import datetime
+    # Sort events by time; if time is None, use datetime.min to put them at the start
     sorted_events = sorted(
         events,
-        key=lambda e: e.time if getattr(e, "time", None) is not None else getattr(e, "created_at", None)
+        key=lambda e: e.time or getattr(e, "created_at", None) or datetime.min
     )
 
     # Build and return the Timeline

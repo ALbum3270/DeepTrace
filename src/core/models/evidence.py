@@ -3,9 +3,12 @@
 """
 from datetime import datetime
 from enum import Enum
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, TYPE_CHECKING
 from uuid import uuid4
 from pydantic import BaseModel, Field
+
+if TYPE_CHECKING:
+    from .comments import Comment
 
 
 class EvidenceSource(str, Enum):
@@ -39,6 +42,7 @@ class Evidence(BaseModel):
     # 扩展字段
     entities: List[str] = Field(default_factory=list, description="NER 识别的实体缓存")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="平台特有字段（点赞数、评论数等）")
+    comments: List["Comment"] = Field(default_factory=list, description="关联的评论列表")
     
     class Config:
         json_encoders = {
