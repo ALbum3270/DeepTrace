@@ -39,6 +39,36 @@ def _sanitize_time_string(time_str: str) -> Optional[str]:
     return None
 
 
+def _refine_source(source: Optional[str], evidence: Evidence) -> str:
+    """优化来源字段，避免 generic terms"""
+    if not source:
+        return "未知来源"
+    
+    generic_terms = ["news", "weibo", "social_media", "web", "internet", "report", "unknown"]
+    if source.lower() in generic_terms:
+        # 尝试从 URL 提取域名
+        if evidence.url:
+            if "xinhuanet.com" in evidence.url: return "新华社"
+            if "people.com.cn" in evidence.url: return "人民日报"
+            if "cctv.com" in evidence.url: return "央视网"
+            if "sina.com" in evidence.url: return "新浪网"
+            if "weibo.com" in evidence.url: return "微博"
+            
+            try:
+                from urllib.parse import urlparse
+                domain = urlparse(evidence.url).netloc
+                return domain.replace("www.", "")
+            except:
+                pass
+                
+        # 尝试从 Title 提取（如 "Title - Source"）
+        if evidence.title and " - " in evidence.title:
+            possible_source = evidence.title.split(" - ")[-1].strip()
+            if len(possible_source) < 20:  # 避免提取到长标题的一部分
+                return possible_source
+                
+    return source
+
 async def extract_event_from_evidence(evidence: Evidence) -> Optional[EventNode]:
     """使用 LLM（Qwen）通过 Function Calling 提取结构化事件信息。
 
@@ -90,6 +120,7 @@ Title: {evidence.title if evidence.title else 'N/A'}
                 title=result["title"] if isinstance(result, dict) else getattr(result, "title"),
                 description=result["description"] if isinstance(result, dict) else getattr(result, "description"),
                 time=time_value,
+                source=result.get("source") if isinstance(result, dict) else getattr(result, "source", None),
                 actors=result.get("actors", []) if isinstance(result, dict) else getattr(result, "actors", []),
                 tags=result.get("tags", []) if isinstance(result, dict) else getattr(result, "tags", []),
                 status=EventStatus(result["status"] if isinstance(result, dict) else getattr(result, "status")),
@@ -97,6 +128,10 @@ Title: {evidence.title if evidence.title else 'N/A'}
                 evidence_ids=[evidence.id]
             )
         
+        # 优化 source
+        if event:
+            event.source = _refine_source(event.source, evidence)
+
         # 确保 evidence_ids 被正确设置
         if event and not event.evidence_ids:
             event.evidence_ids = [evidence.id]
@@ -116,9 +151,11 @@ Title: {evidence.title if evidence.title else 'N/A'}
                 content = raw_result.content if hasattr(raw_result, 'content') else str(raw_result)
                 data = json.loads(content)
                 
-                # 如果 LLM 返回了嵌套结构 {"EventNode": {...}}，提取内层
+                # 如果 LLM 返回了嵌套结构 {"EventNode": {...}} 或 {"event_node": {...}}，提取内层
                 if "EventNode" in data and isinstance(data["EventNode"], dict):
                     data = data["EventNode"]
+                elif "event_node" in data and isinstance(data["event_node"], dict):
+                    data = data["event_node"]
                 
                 # 手动构造 EventNode
                 time_value = None
@@ -135,6 +172,7 @@ Title: {evidence.title if evidence.title else 'N/A'}
                     title=data.get("title", "未知事件"),
                     description=data.get("description", ""),
                     time=time_value,
+                    source=_refine_source(data.get("source"), evidence),
                     actors=data.get("actors", []),
                     tags=data.get("tags", []),
                     status=EventStatus(data.get("status", "confirmed")),
