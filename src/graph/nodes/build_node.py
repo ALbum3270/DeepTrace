@@ -8,7 +8,7 @@ async def build_node(state: GraphState) -> GraphState:
     events = state.get("events", [])
     
     # 调用 Timeline Builder Agent
-    timeline = build_timeline(events)
+    timeline = await build_timeline(events)
     
     return {
         "timeline": timeline,

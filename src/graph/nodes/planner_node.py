@@ -19,11 +19,32 @@ async def planner_node(state: GraphState) -> GraphState:
     # 调用 Agent 生成计划
     plan = await plan_retrieval(timeline, evidences)
     
+    # --- Gain Score Logic ---
+    from ...agents.gain_scorer import calculate_gain_score, should_stop_retrieval
+    
+    run_stats = state.get("run_stats", [])
+    previous_stats = run_stats[-1] if run_stats else None
+    comment_scores = state.get("comment_scores", [])
+    
+    gain_result = calculate_gain_score(timeline, comment_scores, previous_stats)
+    
+    # Update run_stats (Append current metrics)
+    new_stats_entry = gain_result.metrics
+    
+    # Check stop condition
+    if should_stop_retrieval(gain_result, loop_step):
+        plan.finish = True
+        plan.thought_process += f" [System] Auto-stop triggered: {gain_result.reason}"
+    
     new_state = {
         "retrieval_plan": plan,
         "search_queries": plan.queries, # 追加到历史查询列表
-        "steps": [f"planner: loop={loop_step}, finish={plan.finish}, got {len(plan.queries)} queries"],
-        "loop_step": loop_step + 1
+        "steps": [
+            f"planner: loop={loop_step}, finish={plan.finish}, got {len(plan.queries)} queries",
+            f"planner: GainScore={gain_result.score:.2f} ({gain_result.reason})"
+        ],
+        "loop_step": loop_step + 1,
+        "run_stats": [new_stats_entry] # Append to stats
     }
     
     # 如果有新查询，选择一个更新 current_query

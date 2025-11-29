@@ -139,11 +139,17 @@ Title: {evidence.title if evidence.title else 'N/A'}
         return event
     except Exception as e:
         error_msg = str(e)
-        print(f"[ERROR] Event extraction failed: {error_msg[:200]}")
         
-        # 检查是否是嵌套 JSON 问题
-        if "Field required" in error_msg and "EventNode" in error_msg:
-            print("[WARN] Detected nested JSON response, attempting to fix...")
+        # 检查是否是嵌套 JSON 问题 (常见于某些 LLM)
+        is_nested_json_error = "Field required" in error_msg and "EventNode" in error_msg
+        
+        if is_nested_json_error:
+            print("[INFO] Standard parsing failed (likely nested JSON), attempting fallback fix...")
+        else:
+            print(f"[ERROR] Event extraction failed: {error_msg[:200]}")
+        
+        # 尝试修复嵌套 JSON
+        if is_nested_json_error:
             try:
                 # 尝试获取原始响应并手动解析
                 raw_chain = prompt | client

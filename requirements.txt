@@ -6,4 +6,5 @@ httpx
 pytest
 python-dotenv
 google-search-results
+beautifulsoup4
 

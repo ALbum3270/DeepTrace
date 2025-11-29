@@ -13,9 +13,12 @@ class Comment(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid4()))
     content: str = Field(..., description="评论内容")
     author: Optional[str] = Field(None, description="评论作者")
+    role: str = Field("public_opinion", description="角色: public_opinion, direct_quote, controversy")
     publish_time: Optional[datetime] = Field(None, description="发布时间")
     parent_id: Optional[str] = Field(None, description="父评论ID（用于嵌套评论）")
     evidence_id: str = Field(..., description="所属帖子/文章的证据ID")
+    source_url: Optional[str] = Field(None, description="来源URL")
+    meta: dict = Field(default_factory=dict, description="元数据 (likes, etc.)")
     
     class Config:
         json_encoders = {

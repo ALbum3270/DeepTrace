@@ -4,8 +4,9 @@ import operator
 from ..core.models.evidence import Evidence
 from ..core.models.events import EventNode
 from ..core.models.timeline import Timeline
-from ..core.models.comments import CommentScore
+from ..core.models.comments import CommentScore, Comment
 from ..core.models.plan import RetrievalPlan, SearchQuery
+from ..core.models.strategy import SearchStrategy
 
 
 class GraphState(TypedDict, total=False):
@@ -17,6 +18,10 @@ class GraphState(TypedDict, total=False):
     # Input
     initial_query: str
     current_query: str  # 当前这一轮 fetch 使用的 query
+    
+    # Supervisor Routing
+    search_strategy: "SearchStrategy" # 路由控制
+    platforms: List[str]            # 元数据：本次涉及的平台
 
     # Intermediate (Accumulated)
     # 证据列表：多个节点可能产生证据，自动合并
@@ -25,6 +30,8 @@ class GraphState(TypedDict, total=False):
     events: Annotated[List[EventNode], operator.add]
     # 评论评分：多个 Triage 节点可能产生评分，自动合并
     comment_scores: Annotated[List[CommentScore], operator.add]
+    # 原始评论：从 Extract 节点产生，自动合并
+    comments: Annotated[List[Comment], operator.add]
     
     # Planner 相关
     retrieval_plan: RetrievalPlan
@@ -34,6 +41,9 @@ class GraphState(TypedDict, total=False):
     
     # 执行步骤记录：用于调试和展示执行轨迹
     steps: Annotated[List[str], operator.add]
+    
+    # 运行统计：用于 GainScore 计算
+    run_stats: List[dict]
 
     # Output
     timeline: Timeline
