@@ -6,12 +6,13 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from ..config.settings import settings
 
 
-def init_llm(temperature: float = 0.0) -> BaseChatModel:
+def init_llm(temperature: float = 0.0, timeout: int = 120) -> BaseChatModel:
     """
     初始化并返回一个配置好的 ChatOpenAI 实例。
     
     Args:
         temperature: 采样温度 (0.0 - 1.0)
+        timeout: 请求超时时间 (秒)，默认 120s
         
     Returns:
         BaseChatModel: LangChain 聊天模型实例
@@ -26,6 +27,7 @@ def init_llm(temperature: float = 0.0) -> BaseChatModel:
         base_url=settings.openai_base_url,
         model=settings.model_name,
         temperature=temperature,
+        request_timeout=timeout,
         # 显式指定 openai_api_key 参数，防止 langchain 自动读取环境变量有时不一致
         openai_api_key=settings.openai_api_key,
         openai_api_base=settings.openai_base_url,

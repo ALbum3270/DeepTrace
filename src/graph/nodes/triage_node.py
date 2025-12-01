@@ -24,13 +24,13 @@ async def triage_node(state: GraphState) -> GraphState:
     # 构建 Evidence 索引以便快速查找
     evidence_map = {e.id: e for e in evidences}
     
-    # 按 evidence_id 分组评论
+    # 按 source_evidence_id 分组评论
     comments_by_evidence: Dict[str, List[Comment]] = {}
     for c in comments:
-        if c.evidence_id:
-            if c.evidence_id not in comments_by_evidence:
-                comments_by_evidence[c.evidence_id] = []
-            comments_by_evidence[c.evidence_id].append(c)
+        if c.source_evidence_id:
+            if c.source_evidence_id not in comments_by_evidence:
+                comments_by_evidence[c.source_evidence_id] = []
+            comments_by_evidence[c.source_evidence_id].append(c)
             
     all_scores: List[CommentScore] = []
     promoted_evidences: List[Evidence] = []
@@ -62,7 +62,7 @@ async def triage_node(state: GraphState) -> GraphState:
                         metadata={
                             "origin": "comment_promotion",
                             "parent_evidence_id": evidence.id,
-                            "comment_id": original_comment.id,
+                            "parent_comment_id": original_comment.id,
                             "triage_score": score.total_score,
                             "triage_dimensions": {
                                 "novelty": score.novelty,

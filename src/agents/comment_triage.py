@@ -71,7 +71,7 @@ Comments to Triage:
                 if i >= len(comments):
                     break
                 cs = CommentScore(
-                    evidence_id=evidence.id,
+                    source_evidence_id=evidence.id,
                     comment_id=comments[i].id,
                     novelty=score_input.novelty,
                     evidence=score_input.evidence,
@@ -106,7 +106,7 @@ Comments to Triage:
                         if i >= len(comments): break
                         # 转换为 CommentScoreInput (简单字典访问)
                         cs = CommentScore(
-                            evidence_id=evidence.id,
+                            source_evidence_id=evidence.id,
                             comment_id=comments[i].id,
                             novelty=item.get("novelty", 0.0),
                             evidence=item.get("evidence", 0.0),

@@ -33,7 +33,7 @@ async def extract_events_node(state: GraphState) -> GraphState:
 
 async def extract_comments_node(state: GraphState) -> GraphState:
     """
-    Extract Comments Node: 仅从证据中提取评论。
+    Extract Comments Node: 从证据中提取评论（支持 HTML 内容和深度全文挖掘）。
     Reads: state.evidences
     Writes: state.comments
     """
@@ -45,6 +45,7 @@ async def extract_comments_node(state: GraphState) -> GraphState:
         }
         
     # 并发处理所有 Evidence 提取评论
+    # extract_comments_from_article 内部会自动优先使用 full_content
     tasks = [extract_comments_from_article(ev) for ev in evidences]
     results = await asyncio.gather(*tasks)
     
@@ -59,5 +60,5 @@ async def extract_comments_node(state: GraphState) -> GraphState:
             
     return {
         "comments": all_comments,
-        "steps": [f"extract_comments: got {len(all_comments)} comments"]
+        "steps": [f"extract_comments: extracted {len(all_comments)} comments"]
     }

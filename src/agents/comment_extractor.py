@@ -50,7 +50,7 @@ async def extract_comments_from_article(evidence: Evidence) -> List[Comment]:
                 content=raw["content"],
                 author=raw.get("author", "Unknown"),
                 role=raw.get("role", "public_opinion"), # 默认 public_opinion
-                evidence_id=evidence.id,
+                source_evidence_id=evidence.id,
                 source_url=evidence.url,
                 publish_time=None # 暂时留空，后续可尝试解析
             )

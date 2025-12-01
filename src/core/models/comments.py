@@ -16,7 +16,7 @@ class Comment(BaseModel):
     role: str = Field("public_opinion", description="角色: public_opinion, direct_quote, controversy")
     publish_time: Optional[datetime] = Field(None, description="发布时间")
     parent_id: Optional[str] = Field(None, description="父评论ID（用于嵌套评论）")
-    evidence_id: str = Field(..., description="所属帖子/文章的证据ID")
+    source_evidence_id: str = Field(..., description="所属帖子/文章的证据ID")
     source_url: Optional[str] = Field(None, description="来源URL")
     meta: dict = Field(default_factory=dict, description="元数据 (likes, etc.)")
     
@@ -38,7 +38,7 @@ class CommentScore(BaseModel):
     - coordination: 协调性（是否呼应其他评论）
     """
     
-    evidence_id: str = Field(..., description="关联的证据ID")
+    source_evidence_id: str = Field(..., description="关联的证据ID")
     comment_id: str = Field(..., description="关联的评论ID")
     novelty: float = Field(default=0.0, ge=0.0, le=1.0, description="新颖性")
     evidence: float = Field(default=0.0, ge=0.0, le=1.0, description="证据性")

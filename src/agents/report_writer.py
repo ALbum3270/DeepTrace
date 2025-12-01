@@ -25,7 +25,7 @@ async def write_narrative_report(
     Returns:
         Markdown 格式的报告文本
     """
-    client = init_llm()
+    client = init_llm(timeout=300)
     
     # 准备输入数据
     events_summary = "\n\n".join([
