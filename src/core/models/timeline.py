@@ -55,27 +55,31 @@ class Timeline(BaseModel):
             lines.append("*暂无事件节点*\n")
         else:
             for idx, event in enumerate(sorted_events, 1):
-                # 时间标记
+                # 时间标记 - with better formatting
                 if event.time:
                     time_str = event.time.strftime("%Y-%m-%d %H:%M")
-                    lines.append(f"## {idx}. [{time_str}] {event.title}\n")
+                    lines.append(f"### 📍 {idx}. {event.title}\n")
+                    lines.append(f"> **时间**: {time_str} | **置信度**: {event.confidence:.0%} | **状态**: {event.status.value}\n\n")
                 else:
-                    lines.append(f"## {idx}. [时间未知] {event.title}\n")
+                    lines.append(f"### 📍 {idx}. {event.title}\n")
+                    lines.append(f"> **时间**: 未知 | **置信度**: {event.confidence:.0%} | **状态**: {event.status.value}\n\n")
                 
-                # 描述
-                lines.append(f"{event.description}\n")
+                # 描述 - with better line height
+                lines.append(f"{event.description}\n\n")
                 
                 # 参与者
                 if event.actors:
-                    lines.append(f"**参与者**: {', '.join(event.actors)}\n")
+                    lines.append(f"**👥 参与者**: {', '.join(event.actors)}\n\n")
                 
-                # 状态和置信度
-                lines.append(f"**状态**: {event.status.value} | **置信度**: {event.confidence:.2f}\n")
+                # 来源信息
+                if event.source:
+                    lines.append(f"**📰 来源**: {event.source}\n\n")
                 
                 # 证据数
-                lines.append(f"**证据数量**: {len(event.evidence_ids)}\n")
+                if event.evidence_ids:
+                    lines.append(f"**🔗 证据数量**: {len(event.evidence_ids)}\n\n")
                 
-                lines.append("\n")
+                lines.append("---\n\n")
         
         # 未解决问题
         if self.open_questions:

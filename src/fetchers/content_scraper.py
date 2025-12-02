@@ -31,8 +31,15 @@ class ContentScraper:
             - raw_comments_html: (预留) 评论区 HTML
             - error: 错误信息（如果有）
         """
-        if self.semaphore is None:
-            self.semaphore = asyncio.Semaphore(self.max_concurrent)
+        # Always create semaphore in the current event loop to avoid "attached to a different loop" errors
+        try:
+            loop = asyncio.get_running_loop()
+            if self.semaphore is None or getattr(self.semaphore, '_loop', None) != loop:
+                self.semaphore = asyncio.Semaphore(self.max_concurrent)
+        except RuntimeError:
+            # No running loop, create semaphore lazily
+            if self.semaphore is None:
+                self.semaphore = asyncio.Semaphore(self.max_concurrent)
             
         async with self.semaphore:
             try:

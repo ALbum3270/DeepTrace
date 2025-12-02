@@ -33,8 +33,8 @@ async def extract_comments_from_article(evidence: Evidence) -> List[Comment]:
     chain = prompt | llm | parser
     
     try:
-        # 截断过长的文本，防止 Token 溢出 (保留前 6000 字符)
-        truncated_text = content_to_analyze[:6000]
+        # 截断过长的文本，防止 Token 溢出 (Increase from 6000 to 25000 chars ~ 5k-8k tokens)
+        truncated_text = content_to_analyze[:25000]
         
         result = await chain.ainvoke({"text": truncated_text})
         

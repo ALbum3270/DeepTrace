@@ -41,8 +41,8 @@ async def write_narrative_report(
         f"**证据 {i+1}** ({ev.source.value if hasattr(ev.source, 'value') else str(ev.source)})\n"
         f"来源: {ev.title or '无标题'}\n"
         f"URL: {ev.url or '无'}\n"
-        f"内容:\n{ev.content[:500]}{'...' if len(ev.content) > 500 else ''}"
-        for i, ev in enumerate(evidences[:20])  # 限制前20条证据以避免token超限
+        f"内容:\n{ev.content[:2000]}{'...' if len(ev.content) > 2000 else ''}"
+        for i, ev in enumerate(evidences[:100])  # Increase limit to 100 evidences, 2000 chars each
     ])
     
     open_questions = "\n".join([
@@ -59,7 +59,7 @@ async def write_narrative_report(
 # 待解疑点
 {open_questions}
 
-# 证据内容（共 {len(evidences)} 条，仅展示前20条核心证据）
+# 证据内容（共 {len(evidences)} 条，仅展示前100条核心证据）
 {evidences_content}
 
 请基于以上信息，撰写一篇连贯、深入的调查报告。"""
@@ -80,5 +80,27 @@ async def write_narrative_report(
             return str(result)
             
     except Exception as e:
-        print(f"[ERROR] Narrative report generation failed: {e}")
-        return f"# 报告生成失败\n\n错误信息: {e}\n\n请查看结构化报告 (report.md) 了解详情。"
+        error_str = str(e)
+        print(f"[ERROR] Narrative report generation failed: {error_str}")
+        
+        # Fallback for Content Safety Errors (Aliyun/OpenAI)
+        if "data_inspection_failed" in error_str or "inappropriate content" in error_str:
+            print("[WARN] Content safety filter triggered. Generating fallback report.")
+            fallback_report = f"""# 调查报告（安全模式）
+            
+> ⚠️ **注意**: 由于话题涉及敏感内容，智能叙事生成已被拦截。以下为您展示基于原始数据的结构化事实清单。
+
+## 1. 核心事实梳理
+
+{events_summary}
+
+## 2. 关键证据列表
+
+"""
+            # Add simple evidence list
+            for i, ev in enumerate(evidences[:20]):
+                fallback_report += f"- **[{i+1}] {ev.title or '无标题'}**\n  - 来源: {ev.source}\n  - 链接: {ev.url}\n"
+                
+            return fallback_report
+            
+        return f"# 报告生成失败\n\n错误信息: {error_str}\n\n请查看结构化报告 (report.md) 了解详情。"

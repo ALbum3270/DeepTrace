@@ -18,7 +18,7 @@ async def build_timeline(events: List[EventNode]) -> Timeline:
             ev.evidence_ids = []  # type: ignore[attr-defined]
 
     # Semantic Deduplication
-    deduplicated_events = await deduplicate_events(events)
+    deduplicated_events, open_questions = await deduplicate_events(events)
 
     from datetime import datetime
     # Sort events by time; if time is None, use datetime.min to put them at the start
@@ -28,4 +28,4 @@ async def build_timeline(events: List[EventNode]) -> Timeline:
     )
 
     # Build and return the Timeline
-    return Timeline(events=sorted_events, open_questions=[])
+    return Timeline(events=sorted_events, open_questions=open_questions)

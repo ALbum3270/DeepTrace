@@ -19,8 +19,41 @@ async def extract_events_node(state: GraphState) -> GraphState:
             "steps": ["extract_events: no evidences, skip"]
         }
     
+    # Layer 1 Deduplication: Evidence Level
+    unique_evidences = []
+    seen_urls = set()
+    seen_titles = {} # title -> platform
+
+    for ev in evidences:
+        if not ev.url:
+            unique_evidences.append(ev)
+            continue
+            
+        if ev.url in seen_urls:
+            continue
+        seen_urls.add(ev.url)
+        
+        # Title check for cross-platform reposts
+        if ev.title:
+            if ev.title in seen_titles:
+                existing_platform = seen_titles[ev.title]
+                current_platform = ev.metadata.get("platform", "unknown")
+                if existing_platform != current_platform:
+                    # Mark as cross-platform repost
+                    ev.metadata["is_repost"] = True
+                    ev.metadata["repost_source_platform"] = existing_platform
+                    # We still keep it to extract platform-specific reactions, 
+                    # but downstream event dedup will handle the merge.
+            else:
+                seen_titles[ev.title] = ev.metadata.get("platform", "unknown")
+            
+        unique_evidences.append(ev)
+
+    if len(evidences) != len(unique_evidences):
+        print(f"[Extract] Deduplicated evidences: {len(evidences)} -> {len(unique_evidences)}")
+
     # 并发处理所有 Evidence 提取事件
-    tasks = [extract_event_from_evidence(ev) for ev in evidences]
+    tasks = [extract_event_from_evidence(ev) for ev in unique_evidences]
     results = await asyncio.gather(*tasks)
     
     # 过滤掉 None 的事件

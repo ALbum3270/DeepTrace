@@ -46,11 +46,19 @@ def should_continue(state: GraphState) -> str:
         
     # 有 query 且 loop 还没超限 -> 再 fetch 一轮
     if plan.queries:
-        # 这里需要根据当前的 strategy 决定回跳到哪里
-        # 简化起见，Planner 生成的后续 Query 目前统一回跳到 Generic Fetch
-        # 或者我们可以让 Planner 也输出 strategy? 
-        # MVP: 后续循环统一走 Generic Fetch (因为 Planner 主要是补全信息)
-        return "fetch"
+        # 根据当前的 strategy 决定回跳到哪里
+        strategy = state.get("search_strategy", SearchStrategy.GENERIC)
+        
+        if strategy == SearchStrategy.WEIBO:
+            return "weibo_fetch"
+        elif strategy == SearchStrategy.XHS:
+            return "xhs_fetch"
+        elif strategy == SearchStrategy.MIXED:
+            # 对于 Mixed 策略，Planner 生成的 generic query 可能需要分发给所有 fetcher
+            # 或者我们可以简化，只回跳到 mixed_entry 让它再次分发
+            return "mixed_entry"
+        else:
+            return "fetch"
         
     # 默认结束
     return "end"
@@ -121,7 +129,10 @@ def create_graph():
         "planner",
         should_continue,
         {
-            "fetch": "fetch", # 目前循环回 Generic
+            "fetch": "fetch",
+            "weibo_fetch": "weibo_fetch",
+            "xhs_fetch": "xhs_fetch",
+            "mixed_entry": "mixed_entry",
             "end": END
         }
     )
