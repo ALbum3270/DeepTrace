@@ -1,11 +1,15 @@
+import os
 from ..state import GraphState
 from .fetch_node import run_fetch_logic
-from ...agents.fetchers.weibo_fetcher import WeiboFetcher
-from ...agents.fetchers.xhs_fetcher import XHSFetcher
+from ...fetchers.weibo.fetcher import WeiboFetcher
+from ...fetchers.xhs.fetcher import XHSFetcher
 
 # 实例化 Fetcher (单例)
-weibo_fetcher = WeiboFetcher()
-xhs_fetcher = XHSFetcher()
+weibo_backend = os.getenv("WEIBO_BACKEND", "serpapi")
+weibo_fetcher = WeiboFetcher(backend=weibo_backend)
+
+xhs_backend = os.getenv("XHS_BACKEND", "serpapi")
+xhs_fetcher = XHSFetcher(backend=xhs_backend)
 
 async def weibo_fetch_node(state: GraphState) -> GraphState:
     """

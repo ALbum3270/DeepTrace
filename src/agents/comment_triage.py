@@ -47,7 +47,7 @@ async def triage_comments(evidence: Evidence, comments: List[Comment]) -> List[C
     # 将评论列表转为带序号的文本，便于 LLM 对应
     comments_text = "\n".join([f"[{i+1}] {c.content}" for i, c in enumerate(comments)])
 
-    user_message = f"""Evidence Content: {evidence.content}
+    user_message_content = f"""Evidence Content: {evidence.content}
 
 Comments to Triage:
 {comments_text}
@@ -56,14 +56,14 @@ Comments to Triage:
 
     prompt = ChatPromptTemplate.from_messages([
         ("system", COMMENT_TRIAGE_SYSTEM_PROMPT),
-        ("user", user_message)
+        ("user", "{input}")
     ])
 
     try:
         # 使用包装类来避免泛型类型问题
         structured_llm = client.with_structured_output(CommentScoreBatch)
         chain = prompt | structured_llm
-        result = await chain.ainvoke({})
+        result = await chain.ainvoke({"input": user_message_content})
 
         final_scores: List[CommentScore] = []
         if result and result.scores:
@@ -94,7 +94,7 @@ Comments to Triage:
                 # 再次调用（或者如果能获取到 raw output 更好，但这里简单起见重新尝试解析或直接用 raw chain）
                 # 由于 with_structured_output 已经失败，我们需要用 raw chain 获取内容
                 raw_chain = prompt | client
-                raw_result = await raw_chain.ainvoke({})
+                raw_result = await raw_chain.ainvoke({"input": user_message_content})
                 import json
                 content = raw_result.content if hasattr(raw_result, 'content') else str(raw_result)
                 data = json.loads(content)

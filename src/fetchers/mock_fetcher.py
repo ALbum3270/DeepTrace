@@ -35,10 +35,10 @@ class MockFetcher(BaseFetcher):
                     publish_time=datetime.now() - timedelta(days=10),
                     metadata={"likes": 1200, "comments": 300},
                     comments=[
-                        Comment(evidence_id="mock_ev_1", content="我也是！查了一下成分好像有致敏源。", author="路人B", publish_time=datetime.now() - timedelta(days=9)),
-                        Comment(evidence_id="mock_ev_1", content="蹲一个后续，本来想买的。", author="路人C", publish_time=datetime.now() - timedelta(days=9)),
-                        Comment(evidence_id="mock_ev_1", content="集美们，这个成分表第三位是水杨酸，敏感肌慎入啊！", author="成分党D", publish_time=datetime.now() - timedelta(days=8)), # 高价值评论
-                        Comment(evidence_id="mock_ev_1", content="纯路人，感觉博主在黑。", author="黑粉E", publish_time=datetime.now() - timedelta(days=8)), # 噪音
+                        Comment(source_evidence_id="mock_ev_1", content="我也是！查了一下成分好像有致敏源。", author="路人B", publish_time=datetime.now() - timedelta(days=9)),
+                        Comment(source_evidence_id="mock_ev_1", content="蹲一个后续，本来想买的。", author="路人C", publish_time=datetime.now() - timedelta(days=9)),
+                        Comment(source_evidence_id="mock_ev_1", content="集美们，这个成分表第三位是水杨酸，敏感肌慎入啊！", author="成分党D", publish_time=datetime.now() - timedelta(days=8)), # 高价值评论
+                        Comment(source_evidence_id="mock_ev_1", content="纯路人，感觉博主在黑。", author="黑粉E", publish_time=datetime.now() - timedelta(days=8)), # 噪音
                     ]
                 ),
                 Evidence(
@@ -49,8 +49,8 @@ class MockFetcher(BaseFetcher):
                     publish_time=datetime.now() - timedelta(days=2),
                     metadata={"reposts": 500},
                     comments=[
-                        Comment(evidence_id="mock_ev_2", content="支持国货！", author="粉丝F", publish_time=datetime.now() - timedelta(days=2)), # 噪音
-                        Comment(evidence_id="mock_ev_2", content="符合国标不代表不致敏，希望能公开致敏测试报告。", author="理智粉G", publish_time=datetime.now() - timedelta(days=2)), # 高价值
+                        Comment(source_evidence_id="mock_ev_2", content="支持国货！", author="粉丝F", publish_time=datetime.now() - timedelta(days=2)), # 噪音
+                        Comment(source_evidence_id="mock_ev_2", content="符合国标不代表不致敏，希望能公开致敏测试报告。", author="理智粉G", publish_time=datetime.now() - timedelta(days=2)), # 高价值
                     ]
                 )
             ]

@@ -18,8 +18,6 @@ def init_llm(temperature: float = 0.0, timeout: int = 120) -> BaseChatModel:
         BaseChatModel: LangChain 聊天模型实例
     """
     if not settings.openai_api_key:
-        # 在没有 Key 的情况下（比如测试环境），可以抛出警告或返回 Mock
-        # 这里为了简单，如果没 Key 可能会报错，但在 CLI 运行时会显式检查
         pass
 
     return ChatOpenAI(
@@ -28,7 +26,33 @@ def init_llm(temperature: float = 0.0, timeout: int = 120) -> BaseChatModel:
         model=settings.model_name,
         temperature=temperature,
         request_timeout=timeout,
-        # 显式指定 openai_api_key 参数，防止 langchain 自动读取环境变量有时不一致
         openai_api_key=settings.openai_api_key,
         openai_api_base=settings.openai_base_url,
     )
+
+
+def init_json_llm(temperature: float = 0.0, timeout: int = 120) -> BaseChatModel:
+    """
+    初始化并返回一个启用 JSON Mode 的 ChatOpenAI 实例。
+    适用于 Qwen/DashScope API，确保输出是合法 JSON。
+    
+    注意：使用此 LLM 时，prompt 中必须包含 "json" 关键词和 JSON 示例。
+    
+    Args:
+        temperature: 采样温度 (0.0 - 1.0)
+        timeout: 请求超时时间 (秒)，默认 120s
+        
+    Returns:
+        BaseChatModel: LangChain 聊天模型实例（启用 JSON Mode）
+    """
+    return ChatOpenAI(
+        api_key=settings.openai_api_key,
+        base_url=settings.openai_base_url,
+        model=settings.model_name,
+        temperature=temperature,
+        request_timeout=timeout,
+        openai_api_key=settings.openai_api_key,
+        openai_api_base=settings.openai_base_url,
+        model_kwargs={"response_format": {"type": "json_object"}},
+    )
+

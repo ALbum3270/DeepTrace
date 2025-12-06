@@ -4,137 +4,128 @@ from .state import GraphState
 from .nodes.fetch_node import fetch_node
 from .nodes.extract_node import extract_events_node, extract_comments_node
 from .nodes.build_node import build_node
-from .nodes.triage_node import triage_node
-from .nodes.planner_node import planner_node
-from .nodes.supervisor_node import supervisor_node
-from .nodes.platform_fetch_nodes import weibo_fetch_node, xhs_fetch_node
+
+from .nodes.controller import route_raict, promote_layer_node
+from .nodes.execution_nodes import pop_breadth_task_node, execute_depth_setup_node as pop_depth_task_node
+from .nodes.report_node import report_node
 from ..core.models.strategy import SearchStrategy
-
-async def mixed_entry_node(state: GraphState) -> GraphState:
-    """Mixed Strategy Entry Node: Pass-through for fan-out."""
-    return {"steps": ["mixed_entry: fan-out to all fetchers"]}
-
-def route_from_supervisor(state: GraphState) -> str:
-    """
-    根据 Supervisor 的输出决定路由。
-    """
-    strategy = state.get("search_strategy", SearchStrategy.GENERIC)
-    
-    if strategy == SearchStrategy.WEIBO:
-        return "weibo_fetch"
-    elif strategy == SearchStrategy.XHS:
-        return "xhs_fetch"
-    elif strategy == SearchStrategy.MIXED:
-        return "mixed_entry"
-    else:
-        return "fetch" # GENERIC or fallback
-
-def should_continue(state: GraphState) -> str:
-    """
-    决定下一步操作：继续 fetch 还是结束。
-    """
-    plan = state.get("retrieval_plan")
-    loop_step = state.get("loop_step", 0)
-    max_loops = state.get("max_loops", 0)
-    
-    # 无 plan 或已 finish 或超出 loop 限制 -> 结束
-    if not plan or plan.finish:
-        return "end"
-        
-    if max_loops and loop_step >= max_loops:
-        return "end"
-        
-    # 有 query 且 loop 还没超限 -> 再 fetch 一轮
-    if plan.queries:
-        # 根据当前的 strategy 决定回跳到哪里
-        strategy = state.get("search_strategy", SearchStrategy.GENERIC)
-        
-        if strategy == SearchStrategy.WEIBO:
-            return "weibo_fetch"
-        elif strategy == SearchStrategy.XHS:
-            return "xhs_fetch"
-        elif strategy == SearchStrategy.MIXED:
-            # 对于 Mixed 策略，Planner 生成的 generic query 可能需要分发给所有 fetcher
-            # 或者我们可以简化，只回跳到 mixed_entry 让它再次分发
-            return "mixed_entry"
-        else:
-            return "fetch"
-        
-    # 默认结束
-    return "end"
+from ..core.models.task import BreadthTask
 
 
-def create_graph():
+
+def raict_entry_node(state: GraphState) -> GraphState:
     """
-    创建并编译 DeepTrace 事件链分析图。
+    RAICT Entry: Seed the initial Breadth Task from user query.
+    """
+    initial_query = state.get("initial_query", "")
+    # Create initial task
+    task = BreadthTask(
+        layer=0,
+        query=initial_query,
+        reason="Initial User Query",
+        relevance=1.0,
+        gap_coverage=1.0, 
+        novelty=1.0,
+        voi_score=1.0
+    )
+    return {
+        "breadth_pool": [task],
+        "current_layer": 0,
+        "current_layer_breadth_steps": 0,
+        "current_layer_depth_steps": 0,
+        "executed_queries": {initial_query}, # Mark as seen
+        "steps": ["raict_entry: seeded initial task"]
+    }
+
+def create_raict_graph():
+    """
+    RAICT Lite Architecture Graph
     """
     workflow = StateGraph(GraphState)
-
-    # 添加节点
-    workflow.add_node("supervisor", supervisor_node)
-    workflow.add_node("mixed_entry", mixed_entry_node)
+    
+    # Nodes
+    workflow.add_node("raict_entry", raict_entry_node)
+    
+    # Control
+    # Router is logic, not node, but Promote IS a node
+    workflow.add_node("promote_layer", promote_layer_node)
+    
+    # Execution Setup (Pop & Prep)
+    workflow.add_node("pop_breadth", pop_breadth_task_node)
+    workflow.add_node("pop_depth", pop_depth_task_node)
+    
+    # Action Chain (Standard)
+    # Using 'fetch' (generic) -> 'extract' -> 'build' -> 'triage'
+    # Note: Fetch node usually returns 'evidences'.
+    # Extract node returns 'events', 'claims'.
+    # Build node returns 'timeline'.
+    # Triage node returns 'new tasks'.
     
     workflow.add_node("fetch", fetch_node)
-    workflow.add_node("weibo_fetch", weibo_fetch_node)
-    workflow.add_node("xhs_fetch", xhs_fetch_node)
+    workflow.add_node("extract", extract_events_node) 
+    # extract_comments_node is optional in Lite? 
+    # User said: "Fetch -> Extract -> Triage". 
+    # Triage Prompt (new) looks at "Gap", "Claims". It doesn't explicitly mention "Comment Scoring" like Phase 6.
+    # BUT, `extract_events_node` produces Claims? 
+    # Let's check extract_node implementation. `extract_events_node` does NOT produce claims in Phase 9 code?
+    # Wait, I viewed `event_extractor.py` learning: `extract_event_from_evidence` returns `EventNode` and `List[Claim]`.
+    # And `extract_events_node` in `extract_node.py`?
+    # I should check `extract_node.py` to ensure it saves claims to state.
+    # PROCEEDING with assumption it does (User said "Claim Extraction" complete in Phase 9).
     
-    workflow.add_node("extract_events", extract_events_node)
-    workflow.add_node("extract_comments", extract_comments_node)
-    workflow.add_node("triage", triage_node)
     workflow.add_node("build", build_node)
-    workflow.add_node("planner", planner_node)
-
-    # 定义边
-    workflow.set_entry_point("supervisor")
+    workflow.add_node("triage", triage_node)
     
-    # Supervisor 路由
+    workflow.add_node("reporter", report_node)
+    
+    # Edges
+    workflow.set_entry_point("raict_entry")
+    
+    # Entry -> Controller Routing
     workflow.add_conditional_edges(
-        "supervisor",
-        route_from_supervisor,
+        "raict_entry",
+        route_raict,
         {
-            "fetch": "fetch",
-            "weibo_fetch": "weibo_fetch",
-            "xhs_fetch": "xhs_fetch",
-            "mixed_entry": "mixed_entry"
+            "breadth_node": "pop_breadth",
+            "depth_node": "pop_depth",
+            "promote_layer": "promote_layer",
+            "reporter": "reporter"
         }
     )
     
-    # Mixed Entry Fan-out
-    workflow.add_edge("mixed_entry", "fetch")
-    workflow.add_edge("mixed_entry", "weibo_fetch")
-    workflow.add_edge("mixed_entry", "xhs_fetch")
-    
-    # Fetchers -> Extract (Parallel)
-    # Generic Fetch
-    workflow.add_edge("fetch", "extract_events")
-    workflow.add_edge("fetch", "extract_comments")
-    
-    # Weibo Fetch
-    workflow.add_edge("weibo_fetch", "extract_events")
-    workflow.add_edge("weibo_fetch", "extract_comments")
-    
-    # XHS Fetch
-    workflow.add_edge("xhs_fetch", "extract_events")
-    workflow.add_edge("xhs_fetch", "extract_comments")
-    
-    # 汇聚
-    workflow.add_edge("extract_events", "build")
-    workflow.add_edge("extract_comments", "triage")
-    workflow.add_edge("triage", "build")
-    
-    workflow.add_edge("build", "planner")
-    
-    # 条件边 (Planner Loop)
+    # Controller Routing from Promote & Triage (End of loops)
     workflow.add_conditional_edges(
-        "planner",
-        should_continue,
+        "promote_layer",
+        route_raict,
         {
-            "fetch": "fetch",
-            "weibo_fetch": "weibo_fetch",
-            "xhs_fetch": "xhs_fetch",
-            "mixed_entry": "mixed_entry",
-            "end": END
+            "breadth_node": "pop_breadth",
+            "depth_node": "pop_depth",
+            "promote_layer": "promote_layer", # Should not loop immediately usually
+            "reporter": "reporter"
         }
     )
-
+    
+    workflow.add_conditional_edges(
+        "triage",
+        route_raict,
+        {
+            "breadth_node": "pop_breadth",
+            "depth_node": "pop_depth",
+            "promote_layer": "promote_layer",
+            "reporter": "reporter"
+        }
+    )
+    
+    # Execution Chains
+    # Breadth Chain
+    workflow.add_edge("pop_breadth", "fetch")
+    workflow.add_edge("pop_depth", "fetch") # Reuse fetch
+    
+    workflow.add_edge("fetch", "extract")
+    workflow.add_edge("extract", "build")
+    workflow.add_edge("build", "triage")
+    
+    # Reporter
+    workflow.add_edge("reporter", END)
+    
     return workflow.compile()

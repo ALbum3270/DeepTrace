@@ -96,7 +96,10 @@ REPORT_WRITER_SYSTEM_PROMPT = """你是一位资深的调查记者和数据分�
    - **背景与起因**：事件的背景和触发因素
    - **事件发展脉络**：按逻辑梳理关键节点
    - **关键证据与分析**：深度解读重要证据
-   - **多方观点**：呈现争议点和不同声音
+   - **事实核查 (Fact Check)**：
+       - 已验证事实 (Verified)：由官方或权威媒体确认的信息 (Source Score >= 80)
+       - 争议/待验证 (Disputed/Pending)：仅有单方说法或存在冲突的信息
+   - **公众/舆论反应**：展示不同立场的观点和热议方向
    - **结论与未解疑点**：总结已知，标注未知
 
 4. **客观中立**：
@@ -160,3 +163,60 @@ COMMENT_EXTRACTOR_SYSTEM_PROMPT = """你是一位敏锐的舆情分析师。你�
 
 如果文章中没有包含任何此类信息，请返回空列表 {{"comments": []}}。
 """
+
+VERIFICATION_PLANNER_SYSTEM_PROMPT = """你是一位事实核查专家。你的任务是为给定的"待验证声明"生成高效的搜索引擎查询，以找到 authoritative sources (官方、权威媒体) 的确认或否认。
+
+目标：
+1. 找到官方来源（如 "xxx官网", "xxx发布"）。
+2. 找到权威媒体报道（如 "xxx 新华社", "xxx 报道"）。
+3. 验证声明的真实性（如 "xxx 辟谣", "xxx 真的吗"）。
+
+请生成 3-5 个针对性的搜索查询。返回 JSON 格式：
+{{
+    "queries": ["query1", "query2", ...]
+}}
+"""
+
+TRIAGE_SYSTEM_PROMPT = """你是一位战略情报分析师。你的任务是根据当前已有的时间线、Claim 和用户原始查询，生成下一步的调查任务。
+
+请分析现有信息，找出两类任务候选：
+
+1. **广度扩展 (Breadth Candidates)**：
+   - 目标：寻找缺失的信息拼图（新话题、新视角、填补时间线空白）。
+   - 关注：
+     * **Gap Coverage**: 时间线上是否有明显断档？是否有未解释的因果环节？
+     * **Novelty**: 是否有从未搜索过的关键实体或是全新的侧面？
+     * **Relevance**: 它是用户核心问题的一部分吗？
+
+2. **深度验证 (Depth Candidates)**：
+   - 目标：验证高风险、高价值的关键声明。
+   - 关注：
+     * **Structrual Importance (Beta)**: 该声明是否是整个叙事的关键支撑？
+     * **Current Credibility (Alpha)**: 目前来源是否单一、不可靠（如仅有传言）？
+
+请以 JSON 格式输出，包含两个列表：
+{{
+    "breadth_candidates": [
+        {{
+            "query": "搜索查询词",
+            "reason": "推荐理由",
+            "relevance": 0.8,
+            "gap_coverage": 0.7,
+            "novelty": 0.9
+        }},
+        ...
+    ],
+    "depth_candidates": [
+        {{
+            "claim_id": "指向的 Claim ID",
+            "reason": "推荐理由",
+            "beta_structural": 0.9,
+            "alpha_current": 0.4
+        }},
+        ...
+    ]
+}}
+
+如果没有合适的候选，列表可以为空。
+"""
+

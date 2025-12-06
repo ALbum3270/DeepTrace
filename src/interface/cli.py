@@ -3,13 +3,14 @@ import sys
 import asyncio
 from datetime import datetime
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 from ..graph.workflow import create_graph
 from ..core.storage import StorageManager
 from ..core.models.timeline import Timeline
 from ..core.models.evidence import Evidence
 from ..core.models.comments import CommentScore
+from ..core.models.strategy import SearchStrategy
 from ..agents.report_writer import write_narrative_report
 
 def _render_report(
@@ -89,12 +90,14 @@ def _render_report(
     
     return report
 
-async def run_analysis(query: str):
+async def run_analysis(query: str, strategy: Optional[str] = None, depth: Optional[str] = None):
     """
     运行完整的事件链分析流程（基于 LangGraph）。
     
     Args:
         query: 事件查询关键词
+        strategy: 检索策略 (generic/weibo/xhs/mixed)
+        depth: 证据抓取深度 (quick/balanced/deep)
     """
     print(f"🔍 正在分析事件: {query}")
     print("=" * 60)
@@ -121,9 +124,27 @@ async def run_analysis(query: str):
         "max_loops": config["max_loops"]
     }
     
+    # 如果指定了策略，预设到 initial_state
+    if strategy:
+        strategy_map = {
+            "generic": SearchStrategy.GENERIC,
+            "weibo": SearchStrategy.WEIBO,
+            "xhs": SearchStrategy.XHS,
+            "mixed": SearchStrategy.MIXED,
+        }
+        if strategy.lower() in strategy_map:
+            initial_state["search_strategy"] = strategy_map[strategy.lower()]
+            print(f"📌 策略已手动指定: {strategy.upper()}")
+    
+    # 如果指定了证据深度，预设到 initial_state
+    if depth:
+        if depth.lower() in ["quick", "balanced", "deep"]:
+            initial_state["evidence_depth"] = depth.lower()
+            print(f"📊 证据深度已手动指定: {depth.upper()}")
+    
     # 执行图
     try:
-        state = await app.ainvoke(initial_state)
+        state = await app.ainvoke(initial_state, config={"recursion_limit": 100})
     except Exception as e:
         print(f"❌ 执行出错: {e}")
         import traceback
@@ -135,6 +156,7 @@ async def run_analysis(query: str):
     timeline = state.get("timeline") or Timeline(events=[], open_questions=[])
     comment_scores = state.get("comment_scores", [])
     evidences = state.get("evidences", [])
+    claims = state.get("claims", [])
     
     # 打印执行步骤
     print("\n[执行轨迹]")
@@ -187,7 +209,7 @@ async def run_analysis(query: str):
     
     # 生成叙事性报告
     print(f"\n📝 正在生成叙事性调查报告...")
-    narrative_report_md = await write_narrative_report(query, timeline, evidences)
+    narrative_report_md = await write_narrative_report(query, timeline, evidences, claims=claims)
     (run_dir / "narrative_report.md").write_text(narrative_report_md, encoding="utf-8")
     
     print(f"✅ 分析完成！")
@@ -201,7 +223,8 @@ def main():
         epilog="""
 示例用法:
   python -m src.interface.cli --query "翻车"
-  python -m src.interface.cli --query "产品质量问题"
+  python -m src.interface.cli --query "DeepSeek" --strategy mixed
+  python -m src.interface.cli --query "iPhone测评" --strategy xhs
         """
     )
     parser.add_argument(
@@ -209,6 +232,20 @@ def main():
         type=str, 
         required=True, 
         help="事件查询关键词（如：'翻车'、'产品问题'）"
+    )
+    parser.add_argument(
+        "--strategy",
+        type=str,
+        choices=["generic", "weibo", "xhs", "mixed"],
+        default=None,
+        help="检索策略: generic(通用搜索), weibo(微博专项), xhs(小红书专项), mixed(混合模式)。不指定则由AI自动决策。"
+    )
+    parser.add_argument(
+        "--depth",
+        type=str,
+        choices=["quick", "balanced", "deep"],
+        default=None,
+        help="证据抓取深度: quick(5条结果), balanced(10条结果), deep(15条结果)。不指定则由AI自动决策。"
     )
     
     args = parser.parse_args()
@@ -219,7 +256,7 @@ def main():
         # 强制设置 stdout 编码为 utf-8
         sys.stdout.reconfigure(encoding='utf-8')
         
-    asyncio.run(run_analysis(args.query))
+    asyncio.run(run_analysis(args.query, args.strategy, args.depth))
 
 if __name__ == "__main__":
     main()

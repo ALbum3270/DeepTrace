@@ -5,10 +5,13 @@ import json
 from typing import Optional
 from ..core.models.evidence import Evidence
 from ..core.models.events import EventNode, EventStatus
+from ..core.models.claim import Claim
+from ..core.models.credibility import evaluate_credibility
 from ..config.settings import settings
 from .prompts import EVENT_EXTRACTOR_SYSTEM_PROMPT
-from ..llm.factory import init_llm
+from ..llm.factory import init_llm, init_json_llm
 from langchain_core.prompts import ChatPromptTemplate
+from typing import List, Tuple
 
 
 def _sanitize_time_string(time_str: str) -> Optional[str]:
@@ -69,135 +72,145 @@ def _refine_source(source: Optional[str], evidence: Evidence) -> str:
                 
     return source
 
-async def extract_event_from_evidence(evidence: Evidence) -> Optional[EventNode]:
-    """使用 LLM（Qwen）通过 Function Calling 提取结构化事件信息。
+def heuristic_importance(text: str, source_type: str, query: str) -> float:
+    """
+    计算声明的重要性分数 (0-100)。
+    """
+    score = 50.0
+    
+    # 1. 关键词加权
+    keywords = ["正式", "官宣", "否认", "谣言", "事故原因", "发布", "声明", "致歉", "回应", "证实", "确认"]
+    for kw in keywords:
+        if kw in text:
+            score += 20
+            break
+            
+    # 2. Query 相关性 (简单包含)
+    if query and query in text:
+        score += 30
+        
+    return min(100.0, max(0.0, score))
+
+async def extract_event_from_evidence(evidence: Evidence, query: str = "") -> Tuple[Optional[EventNode], List[Claim]]:
+    """使用 LLM（Qwen）通过 JSON Mode 提取结构化事件信息和关键声明。
 
     Args:
         evidence: Evidence 对象
+        query: 当前查询 query (用于重要性评分)
 
     Returns:
-        EventNode 实例，或在失败时返回 None。
+        (EventNode, List[Claim])
     """
-    client = init_llm()
+    # 使用 JSON Mode LLM，确保输出是合法 JSON
+    client = init_json_llm()
 
-    # 构造完整的提示内容（直接格式化，避免变量占位）
-    user_message = f"""Evidence Content: {evidence.content}
+    # JSON 示例模板（使用双花括号转义，避免被 ChatPromptTemplate 解析为变量）
+    # JSON 示例模板（直接作为变量传递，无需双花括号转义）
+    json_template = """
+{
+    "title": "事件标题",
+    "description": "事件详细描述",
+    "time": "YYYY-MM-DD 或 YYYY-MM-DD HH:MM 或 null",
+    "source": "具体来源名称",
+    "actors": ["参与者1", "参与者2"],
+    "tags": ["标签1", "标签2"],
+    "status": "confirmed 或 inferred 或 hypothesis",
+    "confidence": "0.0-1.0 之间的数字",
+    "claims": [
+        "关键声明1",
+        "关键声明2"
+    ]
+}"""
+
+    # 构造完整的提示内容（不使用 f-string 内嵌 JSON 示例）
+    user_content = f"""Evidence Content: {evidence.content}
 Publish Time: {evidence.publish_time}
 Source Type: {evidence.source.value}
 URL: {evidence.url if evidence.url else 'N/A'}
 Title: {evidence.title if evidence.title else 'N/A'}
 
-请分析以上证据，提取其中描述的关键事件。注意：Source Type 只是大类（news/weibo/xhs），请从 URL、Title 或 Content 中推断具体的媒体名称（如：新华社、人民日报、BBC、微博用户@XXX）。"""
+请分析以上证据，提取其中描述的关键事件。返回 JSON 格式。
+
+注意：Source Type 只是大类（news/weibo/xhs），请从 URL、Title 或 Content 中推断具体的媒体名称。"""
+
+    # 组合 user message
+    user_message_content = user_content + "\n\nJSON 结构示例：" + json_template
 
     prompt = ChatPromptTemplate.from_messages([
         ("system", EVENT_EXTRACTOR_SYSTEM_PROMPT),
-        ("user", user_message)
+        ("user", "{input}")  # 使用变量占位符
     ])
 
     try:
-        # 使用结构化输出
-        structured_llm = client.with_structured_output(EventNode)
-        chain = prompt | structured_llm
+        chain = prompt | client
+        result = await chain.ainvoke({"input": user_message_content})
         
-        # 调用链式执行（不传递变量，因为已经在 prompt 中格式化）
-        result = await chain.ainvoke({})
-
-        # result 可能是 EventNode 实例或普通 dict
-        if isinstance(result, EventNode):
-            event = result
-        else:
-            # 若返回 dict，手动构造 EventNode
-            time_value = None
-            if isinstance(result, dict) and result.get("time"):
-                from datetime import datetime
-                try:
-                    time_str = _sanitize_time_string(result["time"])
-                    if time_str:
-                        time_value = datetime.fromisoformat(time_str)
-                except Exception:
-                    pass
-            event = EventNode(
-                title=result["title"] if isinstance(result, dict) else getattr(result, "title"),
-                description=result["description"] if isinstance(result, dict) else getattr(result, "description"),
-                time=time_value,
-                source=result.get("source") if isinstance(result, dict) else getattr(result, "source", None),
-                actors=result.get("actors", []) if isinstance(result, dict) else getattr(result, "actors", []),
-                tags=result.get("tags", []) if isinstance(result, dict) else getattr(result, "tags", []),
-                status=EventStatus(result["status"] if isinstance(result, dict) else getattr(result, "status")),
-                confidence=result["confidence"] if isinstance(result, dict) else getattr(result, "confidence"),
-                evidence_ids=[evidence.id]
-            )
+        # 解析 JSON 响应
+        content = result.content if hasattr(result, 'content') else str(result)
         
-        # 优化 source
-        if event:
-            event.source = _refine_source(event.source, evidence)
-
-        # 确保 evidence_ids 被正确设置
-        if event and not event.evidence_ids:
-            event.evidence_ids = [evidence.id]
-            
-        return event
-    except Exception as e:
-        error_msg = str(e)
+        if not content or not content.strip():
+            print("[WARN] LLM returned empty response, skipping this evidence")
+            return None
         
-        # 检查是否是嵌套 JSON 问题 (常见于某些 LLM)
-        is_nested_json_error = "Field required" in error_msg and "EventNode" in error_msg
+        data = json.loads(content)
         
-        if is_nested_json_error:
-            print("[INFO] Standard parsing failed (likely nested JSON), attempting fallback fix...")
-        else:
-            print(f"[ERROR] Event extraction failed: {error_msg[:200]}")
+        # 处理可能的嵌套结构
+        if "EventNode" in data and isinstance(data["EventNode"], dict):
+            data = data["EventNode"]
+        elif "event_node" in data and isinstance(data["event_node"], dict):
+            data = data["event_node"]
+        elif "event" in data and isinstance(data["event"], dict):
+            data = data["event"]
         
-        # 尝试修复嵌套 JSON
-        if is_nested_json_error:
+        # 解析时间
+        time_value = None
+        if data.get("time"):
+            from datetime import datetime
             try:
-                # 尝试获取原始响应并手动解析
-                raw_chain = prompt | client
-                raw_result = await raw_chain.ainvoke({})
-                content = raw_result.content if hasattr(raw_result, 'content') else str(raw_result)
-                
-                # 验证 content 不为空
-                if not content or not content.strip():
-                    print("[WARN] LLM returned empty response, skipping this evidence")
-                    return None
-                
-                data = json.loads(content)
-                
-                # 如果 LLM 返回了嵌套结构 {"EventNode": {...}} 或 {"event_node": {...}}，提取内层
-                if "EventNode" in data and isinstance(data["EventNode"], dict):
-                    data = data["EventNode"]
-                elif "event_node" in data and isinstance(data["event_node"], dict):
-                    data = data["event_node"]
-                
-                # 手动构造 EventNode
-                time_value = None
-                if data.get("time"):
-                    from datetime import datetime
-                    try:
-                        time_str = _sanitize_time_string(data["time"])
-                        if time_str:
-                            time_value = datetime.fromisoformat(time_str)
-                    except Exception:
-                        pass
-                
-                event = EventNode(
-                    title=data.get("title", "未知事件"),
-                    description=data.get("description", ""),
-                    time=time_value,
-                    source=_refine_source(data.get("source"), evidence),
-                    actors=data.get("actors", []),
-                    tags=data.get("tags", []),
-                    status=EventStatus(data.get("status", "confirmed")),
-                    confidence=data.get("confidence", 0.5),
-                    evidence_ids=[evidence.id]
-                )
-                return event
-            except json.JSONDecodeError:
-                # JSON 解析失败，静默跳过（不打印 traceback）
-                print("[WARN] Failed to parse LLM response as JSON, skipping this evidence")
-                return None
-            except Exception as e2:
-                print(f"[WARN] Fallback parsing failed: {str(e2)[:100]}")
-                return None
+                time_str = _sanitize_time_string(data["time"])
+                if time_str:
+                    time_value = datetime.fromisoformat(time_str)
+            except Exception:
+                pass
         
-        return None
+        # 构造 EventNode
+        event = EventNode(
+            title=data.get("title", "未知事件"),
+            description=data.get("description", ""),
+            time=time_value,
+            source=_refine_source(data.get("source"), evidence),
+            actors=data.get("actors", []),
+            tags=data.get("tags", []),
+            status=EventStatus(data.get("status", "confirmed")),
+            confidence=float(data.get("confidence", 0.5)),
+            evidence_ids=[evidence.id]
+        )
+        
+        # 提取 Claims
+        claims = []
+        raw_claims = data.get("claims", [])
+        if isinstance(raw_claims, list):
+            source_credibility = evaluate_credibility(evidence.url, evidence.content)
+            for claim_text in raw_claims:
+                if not isinstance(claim_text, str) or not claim_text.strip():
+                    continue
+                    
+                importance = heuristic_importance(claim_text, evidence.source.value, query)
+                
+                claims.append(Claim(
+                    content=claim_text,
+                    source_evidence_id=evidence.id,
+                    credibility_score=source_credibility.score,
+                    importance=importance,
+                    status="unverified"
+                ))
+
+        return event, claims
+        
+    except json.JSONDecodeError as e:
+        print(f"[WARN] Failed to parse LLM response as JSON: {str(e)[:100]}")
+        return None, []
+    except Exception as e:
+        print(f"[ERROR] Event extraction failed: {str(e)[:200]}")
+        return None, []
+

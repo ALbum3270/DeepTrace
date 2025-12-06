@@ -1,5 +1,6 @@
 from ..state import GraphState
 from ...agents.retrieval_planner import plan_retrieval
+from ...config.settings import settings
 
 
 async def planner_node(state: GraphState) -> GraphState:
@@ -9,6 +10,7 @@ async def planner_node(state: GraphState) -> GraphState:
     timeline = state.get("timeline")
     evidences = state.get("evidences", [])
     loop_step = state.get("loop_step", 0)
+    seen_queries = state.get("seen_queries") or set()
     
     # 如果没有时间线，无法规划（理论上不应发生，因为 build 在前）
     if not timeline:
@@ -16,8 +18,21 @@ async def planner_node(state: GraphState) -> GraphState:
             "steps": ["planner: no timeline, skip"]
         }
         
+    # Check Max Loops
+    if loop_step >= settings.MAX_RETRIEVAL_ROUNDS:
+        return {
+            "retrieval_plan": None, # Signal to stop? Or just empty plan
+            "steps": [f"planner: Max rounds reached ({settings.MAX_RETRIEVAL_ROUNDS}), stopping."],
+            # Force finish by not setting a new current_query
+        }
+
     # 调用 Agent 生成计划
-    plan = await plan_retrieval(timeline, evidences)
+    plan = await plan_retrieval(timeline, evidences, seen_queries)
+    
+    # Update seen_queries with new queries from plan
+    if plan.queries:
+        for q in plan.queries:
+            seen_queries.add(q.query.strip().lower())
     
     # --- Gain Score Logic ---
     from ...agents.gain_scorer import calculate_gain_score, should_stop_retrieval
@@ -39,6 +54,7 @@ async def planner_node(state: GraphState) -> GraphState:
     new_state = {
         "retrieval_plan": plan,
         "search_queries": plan.queries, # 追加到历史查询列表
+        "seen_queries": seen_queries,   # Update seen set
         "steps": [
             f"planner: loop={loop_step}, finish={plan.finish}, got {len(plan.queries)} queries",
             f"planner: GainScore={gain_result.score:.2f} ({gain_result.reason})"

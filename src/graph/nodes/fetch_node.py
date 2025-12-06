@@ -1,6 +1,6 @@
 from ..state import GraphState
 from ...fetchers.mock_fetcher import MockFetcher
-from ...config.settings import settings
+from ...config.settings import settings, EVIDENCE_DEPTH_MODES
 
 # 根据配置动态选择 Fetcher
 def _get_fetcher():
@@ -35,6 +35,7 @@ scraper = ContentScraper(max_concurrent=3)
 async def run_fetch_logic(state: GraphState, fetcher_instance) -> GraphState:
     """
     通用 Fetch 逻辑：使用指定 fetcher 获取证据，并进行深度抓取。
+    支持动态 evidence_depth 配置。
     """
     # 优先使用 current_query (Planner 生成的)，否则使用 initial_query (用户输入的)
     query = state.get("current_query") or state.get("initial_query")
@@ -43,18 +44,25 @@ async def run_fetch_logic(state: GraphState, fetcher_instance) -> GraphState:
         return {
             "steps": ["fetch: no query provided, skip"]
         }
-        
+    
+    # 获取 evidence_depth 配置
+    depth_mode = state.get("evidence_depth", "balanced")
+    depth_config = EVIDENCE_DEPTH_MODES.get(depth_mode, EVIDENCE_DEPTH_MODES["balanced"])
+    
     # 1. 基础搜索 (Snippet)
     evidences = await fetcher_instance.fetch(query)
     
+    # 应用硬限制
+    evidences = evidences[:min(len(evidences), settings.MAX_EVIDENCE_PER_QUERY)]
+    
     # 2. 深度抓取 (Full Content)
-    # 只对前 5 条结果进行深度抓取，避免太慢
-    top_k = 5
+    # 根据 depth_config 决定深度抓取数量
+    top_k = min(depth_config.deep_fetch, len(evidences))
     deep_fetch_tasks = []
     target_evidences = evidences[:top_k]
     
     if target_evidences:
-        print(f"[FetchNode] Deep fetching top {len(target_evidences)} results...")
+        print(f"[FetchNode] Deep fetching top {len(target_evidences)} results (mode: {depth_mode})...")
         for ev in target_evidences:
             if ev.url:
                 deep_fetch_tasks.append(scraper.scrape(ev.url))
@@ -86,7 +94,7 @@ async def run_fetch_logic(state: GraphState, fetcher_instance) -> GraphState:
 
     return {
         "evidences": evidences,
-        "steps": [f"fetch: q='{query}', got {len(evidences)} evidences (deep fetched {min(len(evidences), top_k)})"]
+        "steps": [f"fetch: q='{query}', got {len(evidences)} evidences (deep fetched {top_k}, mode: {depth_mode})"]
     }
 
 async def fetch_node(state: GraphState) -> GraphState:
@@ -94,3 +102,4 @@ async def fetch_node(state: GraphState) -> GraphState:
     Generic Fetch Node: 使用默认/配置的 fetcher。
     """
     return await run_fetch_logic(state, fetcher)
+

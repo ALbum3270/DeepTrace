@@ -31,26 +31,24 @@ async def are_events_duplicate_llm(event1: EventNode, event2: EventNode) -> bool
         
         请输出 JSON：{{"is_duplicate": true/false, "reason": "..."}}
         """),
-        ("user", """
-        事件 A:
-        时间: {time1}
-        标题: {title1}
-        描述: {desc1}
-        
-        事件 B:
-        时间: {time2}
-        标题: {title2}
-        描述: {desc2}
-        """)
+        ("user", "{input}")
     ])
     
     chain = prompt | llm | parser
     
     try:
-        result = await chain.ainvoke({
-            "time1": event1.time, "title1": event1.title, "desc1": event1.description,
-            "time2": event2.time, "title2": event2.title, "desc2": event2.description
-        })
+        user_content = f"""
+        事件 A:
+        时间: {event1.time}
+        标题: {event1.title}
+        描述: {event1.description}
+        
+        事件 B:
+        时间: {event2.time}
+        标题: {event2.title}
+        描述: {event2.description}
+        """
+        result = await chain.ainvoke({"input": user_content})
         return result.get("is_duplicate", False)
     except Exception as e:
         print(f"[WARN] Deduplication LLM check failed: {e}")
@@ -122,8 +120,6 @@ async def rewrite_and_merge_event(target: EventNode, source: EventNode):
     
     prompt = ChatPromptTemplate.from_messages([
         ("system", """You are an expert editor. Combine the following two event descriptions into a single, cohesive narrative.
-        - **Base (Fact-focused)**: {base_desc}
-        - **Supplement (Perspective-focused)**: {supp_desc}
         
         **Instructions**:
         1. Keep the core facts from the Base description.
@@ -131,16 +127,19 @@ async def rewrite_and_merge_event(target: EventNode, source: EventNode):
         3. Do NOT simply append. Synthesize.
         4. Output ONLY the new description text.
         """),
-        ("user", "Rewrite now.")
+        ("user", "{input}")
     ])
     
     chain = prompt | llm | StrOutputParser()
     
     try:
-        new_desc = await chain.ainvoke({
-            "base_desc": base.description,
-            "supp_desc": supplement.description
-        })
+        user_content = f"""
+        - **Base (Fact-focused)**: {base.description}
+        - **Supplement (Perspective-focused)**: {supplement.description}
+        
+        Rewrite now.
+        """
+        new_desc = await chain.ainvoke({"input": user_content})
         target.description = new_desc
     except Exception as e:
         print(f"[WARN] Fusion rewrite failed: {e}. Fallback to append.")

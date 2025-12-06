@@ -1,9 +1,15 @@
 """
 检索规划模型：定义检索计划和查询语句。
 """
-from typing import List, Optional
+from typing import List, Optional, Literal
 from pydantic import BaseModel, Field
 from .evidence import EvidenceSource
+
+
+class WeiboCommentDepth(BaseModel):
+    """微博评论抓取深度配置"""
+    mode: Literal["auto", "shallow", "normal", "deep", "skip"] = Field("auto", description="抓取模式")
+    suggested_max_comments: Optional[int] = Field(None, description="建议抓取的最大评论数 (Hint)")
 
 
 class SearchQuery(BaseModel):

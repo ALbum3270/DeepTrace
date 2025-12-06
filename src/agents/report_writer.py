@@ -4,6 +4,7 @@ Report Writer Agent: 基于时间线和证据生成叙事性调查报告。
 from typing import List
 from ..core.models.timeline import Timeline
 from ..core.models.evidence import Evidence
+from ..core.models.claim import Claim
 from ..llm.factory import init_llm
 from .prompts import REPORT_WRITER_SYSTEM_PROMPT
 from langchain_core.prompts import ChatPromptTemplate
@@ -13,6 +14,8 @@ async def write_narrative_report(
     topic: str,
     timeline: Timeline,
     evidences: List[Evidence],
+    claims: List[Claim] = [],
+    remaining_tasks: List[str] = []
 ) -> str:
     """
     生成叙事性调查报告。
@@ -42,7 +45,7 @@ async def write_narrative_report(
         f"来源: {ev.title or '无标题'}\n"
         f"URL: {ev.url or '无'}\n"
         f"内容:\n{ev.content[:2000]}{'...' if len(ev.content) > 2000 else ''}"
-        for i, ev in enumerate(evidences[:100])  # Increase limit to 100 evidences, 2000 chars each
+        for i, ev in enumerate(evidences[:30])  # Optimized Limit: 30 evidences to prevent timeout
     ])
     
     open_questions = "\n".join([
@@ -50,28 +53,54 @@ async def write_narrative_report(
         for q in timeline.open_questions
     ]) if timeline.open_questions else "无"
     
-    user_message = f"""# 调查话题
+    # 构造 Claims 信息
+    claims_text = ""
+    if claims:
+        # 分类
+        verified = [c for c in claims if c.status == "verified" or (c.credibility_score >= 80 and c.status != "disputed")]
+        disputed = [c for c in claims if c.status == "disputed" or (c.status == "unverified" and c.importance > 60)]
+        
+        claims_text += "# 核心事实核查 (Claims Analysis)\n"
+        if verified:
+            claims_text += "## 已验证/高置信度事实\n" + "\n".join([f"- {c.content} (可信度: {c.credibility_score})" for c in verified]) + "\n\n"
+        if disputed:
+            claims_text += "## 争议/待验证声明\n" + "\n".join([f"- {c.content} (来源可信度: {c.credibility_score})" for c in disputed]) + "\n\n"
+
+    # Future Tasks
+    future_work_text = ""
+    if remaining_tasks:
+        future_work_text = "# 建议进一步调查的方向 (Unexplored)\n" + "\n".join([f"- {task}" for task in remaining_tasks])
+    
+    # 组合 user message
+    user_message_content = f"""# 调查话题
 {topic}
 
 # 事件时间线（{len(timeline.events)} 个事件）
 {events_summary}
 
+# 事实核查数据
+{claims_text}
+
 # 待解疑点
 {open_questions}
 
-# 证据内容（共 {len(evidences)} 条，仅展示前100条核心证据）
+
+# 建议进一步调查的方向
+{future_work_text}
+
+# 证据内容（共 {len(evidences)} 条，仅展示前30条核心证据）
 {evidences_content}
 
-请基于以上信息，撰写一篇连贯、深入的调查报告。"""
+请基于以上信息，撰写一篇连贯、深入的调查报告。如果存在"建议进一步调查的方向"，请在报告末尾的"结论与未解疑点"部分提及。"""
     
     prompt = ChatPromptTemplate.from_messages([
         ("system", REPORT_WRITER_SYSTEM_PROMPT),
-        ("user", user_message)
+        ("user", "{input}")
     ])
     
     try:
         chain = prompt | client
-        result = await chain.ainvoke({})
+        result = await chain.ainvoke({"input": user_message_content})
         
         # 提取文本内容
         if hasattr(result, 'content'):

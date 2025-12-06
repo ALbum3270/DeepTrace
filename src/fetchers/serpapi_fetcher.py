@@ -3,7 +3,7 @@ SerpAPI Fetcher: 使用 SerpAPI 进行谷歌搜索。
 """
 import asyncio
 from typing import List, Optional
-from serpapi import GoogleSearch
+
 
 from ..config.settings import settings
 from ..core.models.evidence import Evidence, EvidenceSource, EvidenceType
@@ -38,6 +38,13 @@ class SerpAPIFetcher(BaseFetcher):
         }
         
         try:
+            # Lazy import to avoid hard dependency
+            try:
+                from serpapi import GoogleSearch
+            except ImportError:
+                print("[ERROR] 'google-search-results' package not installed. Cannot use SerpAPI.")
+                return []
+
             # 使用 run_in_executor 将同步 SerpAPI 调用转为异步
             loop = asyncio.get_running_loop()
             result = await loop.run_in_executor(
