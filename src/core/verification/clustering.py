@@ -4,7 +4,7 @@ Implements 'Hardware Point 8': Time-Window (±7d) + Embedding Cosine + Union-Fin
 """
 import numpy as np
 from datetime import timedelta
-from typing import List, Dict, Optional, Set
+from typing import List, Dict, Optional
 from pydantic import BaseModel, Field
 from ..models.events import EventNode
 from ...llm.factory import init_embeddings

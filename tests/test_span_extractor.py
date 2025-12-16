@@ -1,5 +1,4 @@
 
-import pytest
 from src.core.models.evidence import Evidence
 from src.core.verification.span_extractor import SpanExtractor
 

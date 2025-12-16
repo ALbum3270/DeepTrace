@@ -1,5 +1,4 @@
 import asyncio
-import json
 import sys
 import os
 
@@ -9,7 +8,6 @@ sys.path.append(os.getcwd())
 from src.core.models.evidence import Evidence
 from src.agents.comment_extractor import extract_comments_from_article
 from src.agents.comment_triage import triage_comments
-from src.core.models.comments import Comment
 
 async def main():
     # Mock evidence for verification

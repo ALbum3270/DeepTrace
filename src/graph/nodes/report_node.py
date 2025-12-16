@@ -4,7 +4,6 @@ from typing import Dict, Any
 
 from ..state import GraphState
 from ...agents.report_writer import write_narrative_report
-from ...core.models.evidence import EvidenceSource
 
 logger = logging.getLogger(__name__)
 
@@ -12,7 +11,7 @@ async def report_node(state: GraphState) -> Dict[str, Any]:
     """
     Reporter Node: 生成最终调查报告
     """
-    events = state.get("events", []) # Unused directly, inside timeline
+    state.get("events", []) # Unused directly, inside timeline
     timeline = state.get("timeline")
     claims = state.get("claims", [])
     evidences = state.get("evidences", [])

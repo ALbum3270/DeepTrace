@@ -3,12 +3,12 @@ Director Agent (Planner).
 Role: Analyze clustered events and verified claims to generate a structured ReportOutline.
 Contract 3 Enforcer: Must assign `conflict_policy` to sections with disputed claims.
 """
-from typing import List, Dict, Any
+from typing import List, Any
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import PydanticOutputParser
 
 from ...llm.factory import init_json_llm
-from .state import SwarmState, ReportOutline, SectionPlan
+from .state import SwarmState, ReportOutline
 
 class DirectorAgent:
     """

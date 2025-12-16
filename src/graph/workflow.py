@@ -2,14 +2,13 @@ from langgraph.graph import StateGraph, END
 
 from .state import GraphState
 from .nodes.fetch_node import fetch_node
-from .nodes.extract_node import extract_events_node, extract_comments_node
+from .nodes.extract_node import extract_events_node
 from .nodes.build_node import build_node
 
 from .nodes.controller import route_raict, promote_layer_node
 from .nodes.execution_nodes import pop_breadth_task_node, execute_depth_setup_node as pop_depth_task_node
 from .nodes.report_node import report_node
 from .nodes.triage_node import triage_candidates_node
-from ..core.models.strategy import SearchStrategy
 from ..core.models.task import BreadthTask
 
 

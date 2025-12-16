@@ -2,7 +2,7 @@
 Fetcher 基础接口定义。
 """
 from abc import ABC, abstractmethod
-from typing import List, Optional
+from typing import List
 from pydantic import BaseModel, Field
 from ..core.models.evidence import Evidence
 

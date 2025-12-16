@@ -1,9 +1,7 @@
 from typing import List, Dict, Any
 from pydantic import BaseModel, Field
-import math
 
 from ..core.models.timeline import Timeline
-from ..core.models.evidence import Evidence
 from ..core.models.comments import CommentScore
 
 class GainScoreResult(BaseModel):

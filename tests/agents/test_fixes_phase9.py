@@ -1,8 +1,7 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from datetime import datetime
 from src.agents.report_writer import write_narrative_report
-from src.agents.timeline_deduplicator import rewrite_and_merge_event, get_source_priority
+from src.agents.timeline_deduplicator import rewrite_and_merge_event
 from src.core.models.events import EventNode
 from src.core.models.evidence import Evidence
 from src.core.models.timeline import Timeline
@@ -14,7 +13,7 @@ from src.core.models.plan import RetrievalPlan, SearchQuery
 async def test_report_writer_truncation_fix():
     """Verify that report writer accepts more than 20 evidences."""
     # Mock LLM
-    with patch("src.agents.report_writer.init_llm") as mock_init:
+    with patch("src.agents.report_writer.init_llm"):
         mock_llm = AsyncMock()
         mock_llm.ainvoke.return_value = "Report Content"
         # Mock chain
@@ -49,8 +48,8 @@ async def test_fusion_rewrite_logic():
     target = EventNode(id="1", title="News Title", description="News Fact", source="News", confidence=0.9)
     source = EventNode(id="2", title="Social Title", description="Social Opinion", source="Weibo", confidence=0.6)
     
-    with patch("src.agents.timeline_deduplicator.init_llm") as mock_init:
-        mock_llm = AsyncMock()
+    with patch("src.agents.timeline_deduplicator.init_llm"):
+        AsyncMock()
         # Mock chain | StrOutputParser
         mock_chain = AsyncMock()
         mock_chain.ainvoke.return_value = "Fused Description"

@@ -1,6 +1,5 @@
-import json
 import logging
-from typing import Dict, Any, List
+from typing import Dict, Any
 
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import JsonOutputParser
@@ -114,7 +113,7 @@ async def triage_candidates_node(state: GraphState) -> Dict[str, Any]:
     top_claims = sorted(unverified_claims, key=lambda x: x.importance, reverse=True)[:20]
     
     # Create lookup map for Claims
-    claim_map = {c.id: c for c in top_claims}
+    {c.id: c for c in top_claims}
     
     claims_text = "\n".join([
         f"- [ID: {c.id}] (Cred: {c.credibility_score}, Imp: {c.importance}) {c.content}" 

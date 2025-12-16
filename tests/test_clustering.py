@@ -3,7 +3,7 @@ import pytest
 import datetime
 from typing import List
 from src.core.models.events import EventNode
-from src.core.verification.clustering import TimelineClusterer, EventCluster
+from src.core.verification.clustering import TimelineClusterer
 
 # Mock Embeddings
 class MockEmbeddings:

@@ -1,7 +1,6 @@
 """
 测试 Timeline Builder Agent
 """
-import pytest
 from datetime import datetime
 from src.core.models.events import EventNode, EventStatus
 from src.agents.timeline_builder import build_timeline

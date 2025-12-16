@@ -1,12 +1,11 @@
 """
 Mock Fetcher：用于测试和 MVP 演示的假数据源。
 """
-import asyncio
 from datetime import datetime, timedelta
 from typing import List
 from ..core.models.evidence import Evidence, EvidenceSource, EvidenceType
 from ..core.models.comments import Comment
-from .base import BaseFetcher, FetchQuery
+from .base import BaseFetcher
 
 
 class MockFetcher(BaseFetcher):

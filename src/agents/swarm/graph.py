@@ -4,12 +4,11 @@ Integrates Director, Writer, and Critic into a coherent workflow.
 Enforces Loop Budgets (Circuit Breaker).
 """
 import logging
-from typing import Literal, Dict, Any, List
+from typing import Literal, Dict, Any
 
 from langgraph.graph import StateGraph, START, END
-from langgraph.checkpoint.memory import MemorySaver
 
-from .state import SwarmState, SectionPlan, ReportOutline
+from .state import SwarmState
 from .director import DirectorAgent
 from .writer import WriterAgent
 from .critic import CriticAgent, CritiqueResult

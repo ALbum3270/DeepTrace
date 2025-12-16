@@ -1,8 +1,8 @@
 
 import logging
-from typing import Dict, Any, List, Set
+from typing import Dict, Any, List
 from ...graph.state import GraphState
-from ...core.models.credibility import evaluate_credibility, get_max_confidence_by_source
+from ...core.models.credibility import evaluate_credibility
 from ...config.settings import settings
 
 logger = logging.getLogger(__name__)
@@ -89,7 +89,7 @@ def update_claims_node(state: GraphState) -> Dict[str, Any]:
     updated_claims = []
     
     # Phase 14: Prep conflict map
-    dedup_conflicts = state.get("dedup_conflicts", [])
+    state.get("dedup_conflicts", [])
     # Build set of conflicted claim IDs (if conflict tracking links back to Claims)
     # Since dedup_conflicts are OpenQuestions with context, we match by simple keyword/similarity or if we have claim linkage.
     # For now, we use a simple heuristic: if the claim's content strongly overlaps with a conflict description.
@@ -236,7 +236,6 @@ def update_claims_node(state: GraphState) -> Dict[str, Any]:
         
     for content, claim_group in content_cluster.items():
         # Count distinct sources
-        distinct_sources = set()
         for c in claim_group:
             ev_id = getattr(c, "source_evidence_id", None)
             if ev_id and ev_id in evidence_cred_map:

@@ -24,7 +24,7 @@ def run_test():
         print("Success!")
         print(f"Result len: {len(result)}")
         print(f"Stats: {stats}")
-    except Exception as e:
+    except Exception:
         import traceback
         traceback.print_exc()
 

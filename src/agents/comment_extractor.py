@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List
 from uuid import uuid4
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import JsonOutputParser

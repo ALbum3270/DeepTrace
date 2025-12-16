@@ -3,8 +3,7 @@ Unit Tests for DeepTrace Core Modules
 测试 event_extractor, extract_node, update_claims_node, report_writer 的关键功能
 """
 import pytest
-import asyncio
-from unittest.mock import Mock, patch, AsyncMock
+from unittest.mock import Mock
 
 # ============================================
 # Test: event_extractor._sanitize_quote

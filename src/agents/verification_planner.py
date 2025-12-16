@@ -1,4 +1,4 @@
-from typing import List, Dict
+from typing import List
 from ..core.models.claim import Claim
 from ..config.settings import settings
 from ..llm.factory import init_json_llm

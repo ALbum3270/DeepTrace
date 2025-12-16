@@ -2,13 +2,12 @@
 """
 Retrieval Planner Agent: 分析时间线和疑点，规划下一步检索。
 """
-import json
 from typing import List, Set
 from langchain_core.prompts import ChatPromptTemplate
 
 from ..core.models.evidence import Evidence
 from ..core.models.timeline import Timeline
-from ..core.models.plan import RetrievalPlan, SearchQuery
+from ..core.models.plan import RetrievalPlan
 from ..config.settings import settings
 from ..llm.factory import init_llm
 

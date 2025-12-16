@@ -7,14 +7,13 @@ Review Stages:
 2.  Evidence Verification (NLI)
 """
 import logging
-import re
-from typing import List, Literal, Optional
+from typing import Literal
 from pydantic import BaseModel, Field
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import PydanticOutputParser
 
 from ...llm.factory import init_json_llm
-from .state import SwarmState, SectionPlan
+from .state import SectionPlan
 
 logger = logging.getLogger(__name__)
 

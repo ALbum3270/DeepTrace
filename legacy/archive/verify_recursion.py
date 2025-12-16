@@ -66,7 +66,7 @@ async def main():
         if norm_q in seen_queries:
             print(f"  [FAIL] Duplicate query generated: {q.query}")
         else:
-            print(f"  [PASS] New query")
+            print("  [PASS] New query")
 
     # Verify limits
     if len(plan.queries) > settings.MAX_NEW_QUERIES_PER_ROUND:

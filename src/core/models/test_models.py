@@ -140,7 +140,7 @@ def test_comment():
     )
     
     total = score.calculate_total()
-    print(f"\n评分:")
+    print("\n评分:")
     print(f"  新颖性: {score.novelty}")
     print(f"  证据性: {score.evidence}")
     print(f"  综合得分: {total:.2f}")

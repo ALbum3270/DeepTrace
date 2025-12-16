@@ -5,7 +5,6 @@ import os
 from unittest.mock import patch
 from importlib import reload
 
-from src.llm.factory import init_llm
 from langchain_openai import ChatOpenAI
 
 class TestLLMFactory:

@@ -2,7 +2,6 @@
 测试 Fetcher 模块
 """
 import pytest
-import asyncio
 from src.fetchers.base import FetchQuery
 from src.fetchers.mock_fetcher import MockFetcher
 from src.core.models.evidence import EvidenceSource

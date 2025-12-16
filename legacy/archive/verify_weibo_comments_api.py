@@ -97,7 +97,7 @@ async def verify_comments():
             else:
                 print("No more pages (max_id=0).")
         else:
-            print(f"Failed to fetch comments. Response:")
+            print("Failed to fetch comments. Response:")
             import json
             print(json.dumps(comments_data, indent=2, ensure_ascii=False))
             

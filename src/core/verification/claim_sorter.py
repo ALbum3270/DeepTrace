@@ -3,9 +3,8 @@ Claim Sorting & Verification Module (Contract 4 Enforcer).
 Implements logic to split Verified vs Disputed claims based on Source Independence.
 """
 import numpy as np
-from typing import List, Dict, Tuple, Set
+from typing import List, Dict, Tuple
 from urllib.parse import urlparse
-from pydantic import BaseModel
 
 from ..models.claim import Claim
 from ..models.evidence import Evidence
@@ -41,7 +40,6 @@ class SourceClusterer:
         # ev_id -> cluster_id
         cluster_map: Dict[str, str] = {}
         # Keep track of representative embedding for each cluster
-        cluster_embeddings: Dict[str, np.ndarray] = {} 
         
         # Prepare embeddings needed?
         # Only if we suspect syndication. 
@@ -147,7 +145,7 @@ class ClaimSorter:
         ev_cluster_map = await self.clusterer.cluster_sources(evidences)
         
         # Map ev_id -> Evidence object for lookups
-        ev_map = {ev.id: ev for ev in evidences}
+        {ev.id: ev for ev in evidences}
         
         verified = []
         disputed = []

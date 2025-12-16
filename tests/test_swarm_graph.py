@@ -1,14 +1,12 @@
 
-import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 from src.agents.swarm.state import SwarmState, ReportOutline, SectionPlan
 from src.agents.swarm.critic import CritiqueResult
 # We need to test the logic functions in graph.py, not necessarily the compiled graph 
 # because compiling requires full LangGraph setup which might be complex to mock.
 # We will test the NODE functions and EDGE logic directly.
 from src.agents.swarm.graph import (
-    director_node, writer_node, critic_node, should_continue, next_section_node,
-    MAX_REVISION_LOOPS_PER_SECTION, create_swarm_graph
+    director_node, writer_node, critic_node, should_continue, MAX_REVISION_LOOPS_PER_SECTION, create_swarm_graph
 )
 
 def get_mock_state():

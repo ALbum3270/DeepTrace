@@ -3,10 +3,8 @@ from typing import List, Dict
 from ..state import GraphState
 from ...agents.event_extractor import extract_event_from_evidence
 from ...agents.comment_extractor import extract_comments_from_article
-from ...core.models.events import EventNode
 from ...core.models.comments import Comment
 from ...core.models.evidence import Evidence
-from ...core.models.claim import Claim
 
 async def extract_events_node(state: GraphState) -> GraphState:
     """

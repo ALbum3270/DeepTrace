@@ -1,6 +1,5 @@
 
 import pytest
-import numpy as np
 from typing import List
 from src.core.models.evidence import Evidence
 from src.core.models.claim import Claim

@@ -1,4 +1,4 @@
-from typing import List, Optional, Literal
+from typing import List, Literal
 from pydantic import BaseModel, Field
 from langchain_core.prompts import ChatPromptTemplate
 

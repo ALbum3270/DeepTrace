@@ -4,7 +4,7 @@ Content Scraper: 用于抓取网页正文内容。
 import asyncio
 import httpx
 from bs4 import BeautifulSoup
-from typing import Optional, Dict, Any
+from typing import Optional, Dict
 import logging
 
 # 配置日志

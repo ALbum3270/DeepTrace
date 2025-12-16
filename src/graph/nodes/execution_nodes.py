@@ -62,7 +62,6 @@ def pop_depth_task_node(state: GraphState) -> Dict[str, Any]:
     # Note: Depth flow is tricky because it needs "Verification Planner" to turn Claim -> Query.
     # We can do it here.
     
-    from ...agents.verification_planner import verification_planner_node 
     # But verification_planner_node expects 'verification_queue' logic usually.
     # Here we just want to run the planner for ONE claim.
     # Let's import the planner function directly if possible, or reimplement lightweight version.

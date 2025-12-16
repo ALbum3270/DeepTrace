@@ -5,11 +5,11 @@ Implements 'CT Scanner' architecture for systemic verification of investigation 
 import logging
 import re
 from enum import Enum, auto
-from datetime import datetime, date
-from typing import List, Dict, Tuple, Optional, Set, Any
-from pydantic import BaseModel, Field
+from datetime import datetime
+from typing import List, Dict, Optional, Any
+from pydantic import BaseModel
 
-from ..models.evidence import Evidence, EvidenceSource
+from ..models.evidence import Evidence
 
 logger = logging.getLogger(__name__)
 

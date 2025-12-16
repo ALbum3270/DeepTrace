@@ -3,7 +3,7 @@ import os
 sys.path.append(os.getcwd())
 
 import pytest
-from unittest.mock import MagicMock, AsyncMock, patch
+from unittest.mock import AsyncMock, patch
 from src.agents.timeline_deduplicator import deduplicate_events
 from src.core.models.events import EventNode
 

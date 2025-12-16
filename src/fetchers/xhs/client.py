@@ -1,7 +1,6 @@
-import asyncio
 import json
 import logging
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Dict, Optional, Union
 from urllib.parse import urlencode, urlparse, parse_qs
 import time
 
@@ -20,7 +19,7 @@ except ImportError:
     Page = Any
 
 from ...infrastructure.proxy.pool import ProxyIpPool
-from ...infrastructure.utils import crawler_util, time_util
+from ...infrastructure.utils import crawler_util
 from ...infrastructure.browser.manager import browser_manager
 
 from .exception import DataFetchError, IPBlockError

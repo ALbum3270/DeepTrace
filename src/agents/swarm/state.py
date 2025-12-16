@@ -2,9 +2,8 @@
 Swarm State Definition.
 Shared state for the Multi-Agent Graph.
 """
-from typing import List, Dict, Any, Optional, TypedDict, Annotated
-from pydantic import BaseModel, Field
-from langgraph.graph.message import add_messages
+from typing import List, Dict, Optional, TypedDict
+from pydantic import BaseModel
 
 from ...core.models.events import EventNode
 from ...core.models.evidence import Evidence

@@ -1,7 +1,6 @@
 """
 测试 Evidence 模型
 """
-import pytest
 from datetime import datetime
 from src.core.models.evidence import Evidence, EvidenceSource, EvidenceType
 

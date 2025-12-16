@@ -2,7 +2,6 @@ import sys
 import os
 sys.path.append(os.getcwd())
 
-import pytest
 from src.agents.gain_scorer import should_stop_retrieval, GainScoreResult
 
 def test_judge_node_should_continue_high_gain():

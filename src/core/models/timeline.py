@@ -1,7 +1,7 @@
 """
 时间线模型：事件节点的有序集合。
 """
-from typing import List, Optional
+from typing import List
 from pydantic import BaseModel, Field
 
 from .events import EventNode, OpenQuestion

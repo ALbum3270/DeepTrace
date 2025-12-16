@@ -9,4 +9,4 @@ google-search-results
 beautifulsoup4
 streamlit
 pandas
-
+ruff

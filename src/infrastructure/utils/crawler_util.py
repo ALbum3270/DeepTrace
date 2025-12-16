@@ -1,7 +1,7 @@
 import random
 import re
 import urllib.parse
-from typing import Dict, List, Optional, Tuple
+from typing import Dict
 
 def get_user_agent() -> str:
     ua_list = [

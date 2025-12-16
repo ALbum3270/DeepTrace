@@ -2,7 +2,6 @@ import argparse
 import sys
 import asyncio
 from datetime import datetime
-from pathlib import Path
 from typing import List, Dict, Any, Optional
 
 from ..graph.workflow import create_graph
@@ -167,7 +166,7 @@ async def run_analysis(query: str, strategy: Optional[str] = None, depth: Option
     if comment_scores:
         print("\n[关键评论挖掘]")
         print("=" * 60)
-        top_scores = sorted(comment_scores, key=lambda x: x.total_score, reverse=True)[:5]
+        sorted(comment_scores, key=lambda x: x.total_score, reverse=True)[:5]
         # ... (此处省略控制台详细打印，主要依靠 Report)
         print(f"已识别 {len(comment_scores)} 条高价值评论，详情请见报告。")
     
@@ -208,11 +207,11 @@ async def run_analysis(query: str, strategy: Optional[str] = None, depth: Option
     storage.save_report(run_dir, report_md)
     
     # 生成叙事性报告
-    print(f"\n📝 正在生成叙事性调查报告...")
+    print("\n📝 正在生成叙事性调查报告...")
     narrative_report_md = await write_narrative_report(query, timeline, evidences, claims=claims)
     (run_dir / "narrative_report.md").write_text(narrative_report_md, encoding="utf-8")
     
-    print(f"✅ 分析完成！")
+    print("✅ 分析完成！")
     print(f"   - 结构化报告: {run_dir / 'report.md'}")
     print(f"   - 调查报告文章: {run_dir / 'narrative_report.md'}")
 

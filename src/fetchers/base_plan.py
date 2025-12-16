@@ -3,7 +3,7 @@ Fetcher 模块：负责从外部源获取数据。
 包含基础接口定义和 Mock 实现。
 """
 from abc import ABC, abstractmethod
-from typing import List, Optional
+from typing import List
 from pydantic import BaseModel, Field
 from ..core.models.evidence import Evidence
 

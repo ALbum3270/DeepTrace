@@ -1,6 +1,6 @@
 
 import pytest
-from src.agents.swarm.critic import CriticAgent, CritiqueResult
+from src.agents.swarm.critic import CriticAgent
 from src.agents.swarm.state import SectionPlan
 
 @pytest.mark.asyncio
@@ -49,7 +49,7 @@ async def test_critic_nli_logic():
         if res_bad.nli_state == "CONTRADICT":
             assert res_bad.revision_needed
             assert res_bad.score < 8.0
-    except Exception as e:
+    except Exception:
         pass
         
     # Case C: NEI (Fail / Hallucination)

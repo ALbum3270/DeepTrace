@@ -1,5 +1,4 @@
 
-import pytest
 from src.core.models.task import BreadthTask, DepthTask
 from src.config.settings import settings
 from src.graph.nodes.controller import route_raict
@@ -73,5 +72,5 @@ if __name__ == "__main__":
         test_finish_no_future_tasks()
         print("✅ All Controller Tests Passed!")
     except AssertionError as e:
-        print(f"❌ Test Failed")
+        print("❌ Test Failed")
         raise e

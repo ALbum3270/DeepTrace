@@ -1,7 +1,6 @@
 """
 测试 Timeline 模型
 """
-import pytest
 from datetime import datetime
 from src.core.models.timeline import Timeline
 from src.core.models.events import EventNode, EventStatus, OpenQuestion

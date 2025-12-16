@@ -7,7 +7,6 @@ from pydantic import BaseModel, Field
 
 from ..core.models.evidence import Evidence
 from ..core.models.comments import Comment, CommentScore
-from ..config.settings import settings
 from .prompts import COMMENT_TRIAGE_SYSTEM_PROMPT
 from ..llm.factory import init_llm
 
@@ -89,7 +88,7 @@ Comments to Triage:
         # 尝试容错处理：如果 LLM 返回了列表而非对象
         error_msg = str(e)
         if "Input should be an object" in error_msg and "input_type=list" in error_msg:
-            print(f"[WARN] Comment triage returned a list instead of object, attempting to fix...")
+            print("[WARN] Comment triage returned a list instead of object, attempting to fix...")
             try:
                 # 再次调用（或者如果能获取到 raw output 更好，但这里简单起见重新尝试解析或直接用 raw chain）
                 # 由于 with_structured_output 已经失败，我们需要用 raw chain 获取内容

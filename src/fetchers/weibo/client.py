@@ -5,12 +5,11 @@ import re
 import copy
 import logging
 from typing import Dict, List, Optional, Union
-from urllib.parse import parse_qs, unquote, urlencode
+from urllib.parse import urlencode
 
 import httpx
 
-from ...infrastructure.proxy.pool import create_ip_pool, ProxyIpPool
-from ...infrastructure.utils import crawler_util, time_util
+from ...infrastructure.proxy.pool import ProxyIpPool
 
 logger = logging.getLogger(__name__)
 
@@ -185,7 +184,7 @@ class WeiboClient:
             note_item = {"mblog": note_detail}
             return note_item
         else:
-            logger.info(f"[WeiboClient.get_note_info_by_id] 未找到$render_data的值")
+            logger.info("[WeiboClient.get_note_info_by_id] 未找到$render_data的值")
             return dict()
 
     async def fetch_comments_api(self, mid_id: str, max_pages: int = 1, max_comments: int = 20) -> List[Dict]:

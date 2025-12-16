@@ -9,7 +9,7 @@ from ..core.models.claim import Claim
 from ..core.models.credibility import evaluate_credibility
 from ..config.settings import settings
 from .prompts import EVENT_EXTRACTOR_SYSTEM_PROMPT
-from ..llm.factory import init_llm, init_json_llm
+from ..llm.factory import init_json_llm
 from langchain_core.prompts import ChatPromptTemplate
 from typing import List, Tuple
 import logging

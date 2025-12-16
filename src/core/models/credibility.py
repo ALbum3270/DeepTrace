@@ -1,5 +1,4 @@
 from pydantic import BaseModel
-from typing import Optional
 from urllib.parse import urlparse
 
 class CredibilityScore(BaseModel):

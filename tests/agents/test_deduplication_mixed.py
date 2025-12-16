@@ -1,7 +1,7 @@
 import pytest
-from unittest.mock import patch, MagicMock
-from datetime import datetime, timedelta
-from src.core.models.events import EventNode, EventStatus
+from unittest.mock import patch
+from datetime import datetime
+from src.core.models.events import EventNode
 from src.agents.timeline_deduplicator import deduplicate_events
 
 @pytest.mark.asyncio

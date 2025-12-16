@@ -1,7 +1,7 @@
 import os
 import random
 import logging
-from typing import Dict, List, Optional
+from typing import List, Optional
 import httpx
 from tenacity import retry, stop_after_attempt, wait_fixed
 

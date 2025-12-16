@@ -4,7 +4,7 @@
 import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
 from src.core.models.evidence import Evidence, EvidenceSource
-from src.core.models.comments import Comment, CommentScore
+from src.core.models.comments import Comment
 from src.agents.comment_triage import triage_comments, CommentScoreBatch, CommentScoreInput
 
 class TestCommentTriage:

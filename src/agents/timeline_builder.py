@@ -1,5 +1,5 @@
 from typing import List
-from ..core.models.events import EventNode, EventStatus
+from ..core.models.events import EventNode
 from ..core.models.timeline import Timeline
 
 from .timeline_deduplicator import deduplicate_events
