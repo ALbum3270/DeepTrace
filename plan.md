@@ -99,3 +99,17 @@
   - [ ] CommentTriage
   - [ ] RetrievalPlanner
 - [ ] 记录典型“案例运行日志”，作为后续调优的基准
+
+---
+
+### Phase 20: SOTA Verification Swarm (DeepTrace 2.0) [Current]
+
+- [x] **Data Layer 1: Robust Preprocessing**
+    - [x] Embedding Infrastructure
+    - [x] TimelineClusterer (Point 8)
+    - [x] SourceClusterer (Point 4)
+    - [x] SpanExtractor (Point 2)
+- [ ] **Agent Swarm Layer 2: Core Logic**
+    - [x] Director (Point 3)
+    - [x] Writer (Point 6)
+    - [ ] Critic (Point 5)
