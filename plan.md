@@ -113,3 +113,7 @@
     - [x] Director (Point 3)
     - [x] Writer (Point 6)
     - [x] Critic (Point 5)
+- [ ] **Swarm Controller: Loop & Audit**
+    - [x] RevisionLoop (Circuit Breaker)
+    - [ ] ConsistencyAuditor (Point 7)
+    - [ ] Editor (Unresolvable Conflicts)
