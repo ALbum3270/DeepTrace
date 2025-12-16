@@ -37,6 +37,21 @@ def init_llm(temperature: float = 0.0, timeout: int = 120, enable_thinking: bool
     )
 
 
+def init_embeddings():
+    """
+    初始化 Embedding 模型。
+    优先使用 OpenAI/DashScope 兼容的 Embedding 服务。
+    """
+    from langchain_openai import OpenAIEmbeddings
+    
+    return OpenAIEmbeddings(
+        api_key=settings.openai_api_key,
+        base_url=settings.openai_base_url,
+        model=settings.embedding_model_name, 
+        check_embedding_ctx_length=False
+    )
+
+
 def init_json_llm(temperature: float = 0.0, timeout: int = 120) -> BaseChatModel:
     """
     初始化并返回一个启用 JSON Mode 的 ChatOpenAI 实例。
