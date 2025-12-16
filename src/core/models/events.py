@@ -29,6 +29,13 @@ class EventNode(BaseModel):
     confidence: float = Field(default=0.5, ge=0.0, le=1.0, description="置信度 (0.0 ~ 1.0)")
     evidence_ids: List[str] = Field(default_factory=list, description="关联的证据ID列表")
     
+    # Phase 18: Advanced Event Modeling
+    model_family: Optional[str] = Field(None, description="模型家族 e.g. gpt-4-family, gpt-5-family")
+    version_line: Optional[str] = Field(None, description="版本线 e.g. gpt-5, gpt-5.1")
+    evidence_type: str = Field(default="media", description="evidence type: official | media | rumor | opinion")
+    phase: str = Field(default="unknown", description="phase: plan | announce | release | upgrade")
+    date_precision: str = Field(default="day", description="date precision: day | month | year | approx | unknown")
+    
     class Config:
         json_encoders = {
             datetime: lambda v: v.isoformat() if v else None
@@ -53,6 +60,8 @@ class OpenQuestion(BaseModel):
     context: str = Field(default="", description="提出问题的上下文")
     priority: float = Field(default=0.5, ge=0.0, le=1.0, description="优先级")
     related_event_ids: List[str] = Field(default_factory=list, description="相关事件节点ID")
+    related_claim_ids: List[str] = Field(default_factory=list, description="相关Claim ID (Phase 12)")
+    tags: List[str] = Field(default_factory=list, description="标签 (e.g. ['conflict', 'structural'])")
     
     def __repr__(self) -> str:
         return f"OpenQuestion(priority={self.priority:.2f}, question='{self.question[:50]}...')"

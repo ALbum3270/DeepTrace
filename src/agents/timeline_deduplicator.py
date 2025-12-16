@@ -12,6 +12,64 @@ class DeduplicationResult(BaseModel):
     is_duplicate: bool = Field(..., description="是否为重复事件")
     reason: str = Field(..., description="判断理由")
 
+def extract_versions(text: str) -> Set[str]:
+    """Extract version numbers like '1.0', '2.0', '3.0', 'v4', 'GPT-4'."""
+    import re
+    # Match patterns like v1.0, 2.0, 3.5, but avoid simple dates like 2024.1.1
+    # Simple regex for x.y or vX versions
+    matches = re.findall(r'(?:v|V)?\d+(?:\.\d+)+(?:\s*Pro|\s*Flash|\s*Ultra)?', text)
+    # Also match "Gemini 3", "GPT-4"
+    matches_named = re.findall(r'(?:Gemini|GPT|Llama)\s*-?\s*\d+(?:\.\d+)?', text, re.IGNORECASE)
+    return set([m.lower().strip() for m in matches + matches_named])
+
+def extract_years(text: str) -> Set[str]:
+    """Extract years like 2024, 2025."""
+    import re
+    return set(re.findall(r'202[3-6]', text))
+
+def check_conflicts(e1: EventNode, e2: EventNode) -> bool:
+    """
+    Check if two potentially similar events have factual conflicts.
+    Logic:
+    1. Different Model Family -> No Conflict (e.g. GPT-4 vs GPT-5)
+    2. Start/End Phase -> No Conflict (e.g. Plan vs Release)
+    3. Version Conflict (e.g. GPT-5.1 vs GPT-5.2) -> Conflict
+    4. Year Conflict -> Conflict
+    """
+    # 1. Family Check (Strict)
+    if e1.model_family and e2.model_family and e1.model_family != e2.model_family:
+        return False
+        
+    # 2. Phase Check (Progressive)
+    safe_phases = {"plan", "announce", "release", "upgrade"}
+    if e1.phase in safe_phases and e2.phase in safe_phases:
+        # If phases are different (e.g. plan vs release), it's likely progress, not conflict
+        # Only consider conflict if phases are SAME but details differ significantly
+        if e1.phase != e2.phase:
+            return False
+
+    text1 = (e1.title or "") + " " + (e1.description or "")
+    text2 = (e2.title or "") + " " + (e2.description or "")
+    
+    # 3. Version Conflict
+    v1 = extract_versions(text1)
+    v2 = extract_versions(text2)
+    # If explicit versions exist and NO intersection, it's a conflict
+    if v1 and v2 and not v1.intersection(v2):
+        # Double check: if e1.version_line is set, rely on that
+        if e1.version_line and e2.version_line and e1.version_line == e2.version_line:
+            pass # Same verified version line, ignore text extraction noise
+        else:
+            return True
+        
+    # 4. Year Conflict (e.g. 2024 vs 2025)
+    y1 = extract_years(text1)
+    y2 = extract_years(text2)
+    if y1 and y2 and not y1.intersection(y2):
+        return True
+        
+    return False
+
 def calculate_similarity(text1: str, text2: str) -> float:
     """计算两个文本的相似度 (0.0 - 1.0)"""
     return SequenceMatcher(None, text1, text2).ratio()
@@ -187,52 +245,70 @@ async def deduplicate_events(events: List[EventNode]) -> Tuple[List[EventNode], 
                 if delta > 2:
                     continue # Skip if too far apart
             
-            # 1. Cheap Similarity Filter
+            # 1. Similarity Calculation
             text1 = current_event.title or current_event.description[:50]
             text2 = candidate.title or candidate.description[:50]
             similarity = calculate_similarity(text1, text2)
             
+            # Phase 18: Split Thresholds
+            # Thresholds
+            near_duplicate_threshold = 0.8  # High similarity -> potential merge
+            potential_conflict_threshold = 0.6 # Moderate similarity -> check logic conflict
+            
             is_duplicate = False
             
-            if similarity > 0.85:
-                # 极高相似度，直接认定重复
-                is_duplicate = True
-                print(f"[Dedup] Auto-merge (High Sim {similarity:.2f}): '{text1}' vs '{text2}'")
-            elif similarity > 0.6:
-                # 中等相似度，调用 LLM 确认
-                print(f"[Dedup] Checking LLM (Sim {similarity:.2f}): '{text1}' vs '{text2}'")
-                is_duplicate = await are_events_duplicate_llm(current_event, candidate)
-            
-            if is_duplicate:
-                print(f"[Dedup] Merging: {candidate.title} -> {current_event.title}")
-                
-                # Conflict Check (Date mismatch > 1 day, stricter for merged events)
-                if current_event.time and candidate.time:
-                    delta = abs((current_event.time - candidate.time).days)
-                    if delta > 1:
-                        q = OpenQuestion(
-                            question=f"关于事件 '{current_event.title}' 的发生时间存在争议。",
-                            context=f"来源 '{current_event.source}' 称时间为 {current_event.time}，而来源 '{candidate.source}' 称时间为 {candidate.time}。",
-                            related_event_ids=[current_event.id, candidate.id],
-                            priority=0.8
-                        )
-                        open_questions.append(q)
-                        print(f"[Dedup] Conflict detected: {q.question}")
-
-                # Fusion Rewrite: Use LLM to merge descriptions if sources differ significantly
-                # Check if we are merging News + Social
-                p_current = get_source_priority(current_event.source)
-                p_candidate = get_source_priority(candidate.source)
-                
-                if p_current != p_candidate and abs(p_current - p_candidate) > 0:
-                     print(f"[Dedup] Cross-platform merge detected. Rewriting description...")
-                     # We need to await this, so we can't use the sync merge_event_content easily
-                     # Let's inline the logic or make a new async function
-                     await rewrite_and_merge_event(current_event, candidate)
+            # A. Check for Merge (High Sim)
+            if similarity > near_duplicate_threshold:
+                # Use strict LLM check
+                if similarity > 0.90:
+                    is_duplicate = True
+                    print(f"[Dedup] Auto-merge (High Sim {similarity:.2f}): '{text1}' vs '{text2}'")
                 else:
-                     merge_event_content(current_event, candidate)
-                     
-                skip_indices.add(j)
+                    print(f"[Dedup] Checking LLM (Sim {similarity:.2f}): '{text1}' vs '{text2}'")
+                    is_duplicate = await are_events_duplicate_llm(current_event, candidate)
+                    
+                if is_duplicate:
+                    print(f"[Dedup] Merging: {candidate.title} -> {current_event.title}")
+                    
+                    # Merge Logic (Preserve logic)
+                    if current_event.time and candidate.time:
+                        delta = abs((current_event.time - candidate.time).days)
+                        if delta > 1:
+                            # Still notify date mismatch inside a merge (could be an error)
+                            q = OpenQuestion(
+                                question=f"[CONFLICT] 关于事件 '{current_event.title}' 的发生时间存在争议。",
+                                context=f"合并事件中发现时间不一致：{current_event.time} vs {candidate.time}",
+                                related_event_ids=[current_event.id, candidate.id],
+                                tags=["conflict", "structural", "date"],
+                                priority=0.8
+                            )
+                            open_questions.append(q)
+
+                    # Cross-platform rewrite
+                    p_current = get_source_priority(current_event.source)
+                    p_candidate = get_source_priority(candidate.source)
+                    
+                    if p_current != p_candidate and abs(p_current - p_candidate) > 0:
+                         await rewrite_and_merge_event(current_event, candidate)
+                    else:
+                         merge_event_content(current_event, candidate)
+                         
+                    skip_indices.add(j)
+                    continue # Merged, move to next candidate
+
+            # B. Check for Conflict (Moderate Sim but NOT merged)
+            if similarity > potential_conflict_threshold:
+                 # Only check conflicts if they talk about similar things
+                 if check_conflicts(current_event, candidate):
+                     print(f"[Dedup] Conflict detected (Logic): '{text1}' vs '{text2}'")
+                     conflict_q = OpenQuestion(
+                        question=f"[CONFLICT] 事件 '{current_event.title}' 与 '{candidate.title}' 存在事实冲突。",
+                        context=f"两者描述相似话题 (Sim {similarity:.2f}) 但关键细节冲突。事件A: {text1}；事件B: {text2}。",
+                        related_event_ids=[current_event.id, candidate.id],
+                        tags=["conflict", "structural", "logic"],
+                        priority=0.85
+                    )
+                     open_questions.append(conflict_q)
         
         merged_events.append(current_event)
         

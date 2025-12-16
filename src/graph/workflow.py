@@ -8,6 +8,7 @@ from .nodes.build_node import build_node
 from .nodes.controller import route_raict, promote_layer_node
 from .nodes.execution_nodes import pop_breadth_task_node, execute_depth_setup_node as pop_depth_task_node
 from .nodes.report_node import report_node
+from .nodes.triage_node import triage_candidates_node
 from ..core.models.strategy import SearchStrategy
 from ..core.models.task import BreadthTask
 
@@ -74,7 +75,7 @@ def create_raict_graph():
     # PROCEEDING with assumption it does (User said "Claim Extraction" complete in Phase 9).
     
     workflow.add_node("build", build_node)
-    workflow.add_node("triage", triage_node)
+    workflow.add_node("triage", triage_candidates_node)
     
     workflow.add_node("reporter", report_node)
     

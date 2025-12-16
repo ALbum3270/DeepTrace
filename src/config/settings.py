@@ -25,9 +25,19 @@ class Settings:
     """全局配置类"""
     
     # LLM 配置
-    openai_api_key = os.getenv("OPENAI_API_KEY", "")
+    # LLM 配置
+    _openai_api_key = os.getenv("OPENAI_API_KEY", "")
+    _dashscope_api_key = os.getenv("DASHSCOPE_API_KEY", "")
+    
     openai_base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
     model_name = os.getenv("MODEL_NAME", "gpt-4o")
+    
+    @property
+    def openai_api_key(self):
+        """Dynamic API Key selection"""
+        if "dashscope" in self.openai_base_url and self._dashscope_api_key:
+            return self._dashscope_api_key
+        return self._openai_api_key
     
     # 项目配置
     project_name = "DeepTrace"
@@ -89,9 +99,61 @@ class Settings:
     BREADTH_VOI_THRESHOLD = 0.5  # Only add breadth tasks > 0.5
     DEPTH_VOI_THRESHOLD = 0.5    # Only add depth tasks > 0.5
 
-    # Cost Estimates
+    # Cost Estimates (Original)
     COST_BREADTH_DEFAULT = 1.0
     COST_DEPTH_DEFAULT = 2.0
+    
+    # VoI Cost Model (Phase 10+)
+    BREADTH_BASE_COST = 1.0
+    DEPTH_BASE_COST = 2.0
+    BREADTH_LAYER_COST_FACTOR = 0.5  # Cost increases 50% per layer
+    DEPTH_LAYER_COST_FACTOR = 0.5
+    
+    # VoI Weights
+    VOI_WEIGHT_BETA = 1.0         # Weight for claim importance (beta)
+    VOI_WEIGHT_UNCERTAINTY = 1.0  # Weight for uncertainty (1 - alpha)
+    
+    # Top-K Filtering
+    MAX_TOP_K_BREADTH_TASKS = 5   # Keep top 5 breadth tasks per triage
+    MAX_TOP_K_DEPTH_TASKS = 10    # Keep top 10 depth tasks per triage
+    
+    # Credibility Threshold
+    CREDIBILITY_VERIFIED_THRESHOLD = 0.85  # Claims with alpha >= 0.85 don't need verification
+
+    # --- Phase 17: Strict Truth Constraints ---
+    # Official domains (for automatic OFFICIAL evidence_type)
+    OFFICIAL_DOMAINS = {
+        "openai.com", "blog.openai.com",
+        "google.com", "blog.google", "deepmind.com",
+        "microsoft.com", "azure.microsoft.com",
+        "anthropic.com",
+        "meta.com", "ai.meta.com",
+        "gov.cn", "xinhuanet.com", "people.com.cn",
+        "apple.com", "developer.apple.com"
+    }
+    
+    # Truth thresholds
+    OFFICIAL_SOURCE_MIN_CONF = 0.90  # Official sources can achieve 90%+ confidence
+    MULTI_SOURCE_MIN_COUNT = 3       # 3+ sources needed for consensus upgrade
+    MULTI_SOURCE_MIN_CONF = 0.85     # Average confidence needed for consensus
+    
+    # Claim verification settings
+    MAX_CANONICAL_TEXT_LENGTH = 200  # Max length for canonical text quotes
+    
+    # --- Phase 18: Advanced Event Modeling ---
+    VERSION_FAMILIES = {
+        "gpt-5-family": ["gpt-5", "gpt-5.1", "gpt-5.2", "gpt5"],
+        "gpt-4-family": ["gpt-4", "gpt-4o", "gpt-4-turbo", "gpt4"],
+        "gemini-family": ["gemini", "gemini 2", "gemini 3", "gemini pro", "gemini ultra"],
+        "claude-family": ["claude", "claude 3", "claude 4", "opus", "sonnet"],
+        "llama-family": ["llama", "llama 3", "llama 4"]
+    }
+    
+    OFFICIAL_PRIORITY_WEIGHT = 1.5   # Events from official sources get 1.5x weight
+    RUMOR_PENALTY_WEIGHT = 0.6       # Rumor/opinion events get 0.6x weight
+    
+    # Concurrency control
+    EXTRACTION_BATCH_SIZE = 2        # Process evidences in batches of 2 (Lowered to avoid 429)
 
     
     @classmethod

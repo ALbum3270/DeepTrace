@@ -12,6 +12,29 @@ from .prompts import EVENT_EXTRACTOR_SYSTEM_PROMPT
 from ..llm.factory import init_llm, init_json_llm
 from langchain_core.prompts import ChatPromptTemplate
 from typing import List, Tuple
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+def _sanitize_quote(quote: str) -> str:
+    """
+    清理并标准化原文引用：
+    1. 移除换行符
+    2. 截断至最大长度
+    3. 去除首尾空白
+    """
+    if not quote:
+        return ""
+    # 移除换行符和多余空白
+    sanitized = quote.replace('\n', ' ').replace('\r', ' ')
+    sanitized = ' '.join(sanitized.split())  # 合并多个空格
+    sanitized = sanitized.strip()
+    # 使用配置文件中的长度限制
+    max_length = settings.MAX_CANONICAL_TEXT_LENGTH
+    if len(sanitized) > max_length:
+        sanitized = sanitized[:max_length] + "…"
+    return sanitized
 
 
 def _sanitize_time_string(time_str: str) -> Optional[str]:
@@ -116,9 +139,14 @@ async def extract_event_from_evidence(evidence: Evidence, query: str = "") -> Tu
     "tags": ["标签1", "标签2"],
     "status": "confirmed 或 inferred 或 hypothesis",
     "confidence": "0.0-1.0 之间的数字",
+    "evidence_type": "official/media/rumor/opinion",
+    "phase": "plan/announce/release/upgrade/unknown",
+    "date_precision": "day/month/year/approx/unknown",
     "claims": [
-        "关键声明1",
-        "关键声明2"
+        {
+            "claim": "归纳后的关键声明",
+            "quote": "从原文中直接复制的句子或短语（必须是原文子串）"
+        }
     ]
 }"""
 
@@ -173,6 +201,43 @@ Title: {evidence.title if evidence.title else 'N/A'}
             except Exception:
                 pass
         
+        # Phase 18: Rule-Based Evidence Type Override
+        ev_type = data.get("evidence_type", "media")
+        
+        # 1. Force Official if domain in whitelist
+        if evidence.url:
+            from urllib.parse import urlparse
+            try:
+                domain = urlparse(evidence.url).netloc.lower()
+                # Check exact or subdomain match
+                if any(domain == d or domain.endswith("." + d) for d in settings.OFFICIAL_DOMAINS):
+                    ev_type = "official"
+            except:
+                pass
+                
+        # 2. Force Rumor if keywords detected (and not already official)
+        if ev_type != "official":
+            rumor_keywords = ["知情人士", "消息称", "爆料", "sources say", "rumor", "leak"]
+            if any(kw in (data.get("description") or "") for kw in rumor_keywords):
+                ev_type = "rumor"
+
+        # Phase 18: Model Family & Version Line Inference
+        text_content = (data.get("title") or "") + " " + (data.get("description") or "")
+        text_lower = text_content.lower()
+        
+        model_family = None
+        version_line = None
+        
+        for fam, members in settings.VERSION_FAMILIES.items():
+            if any(m in text_lower for m in members):
+                model_family = fam
+                # Try to find specific version
+                for m in members:
+                    if m in text_lower:
+                        version_line = m
+                        break
+                break
+
         # 构造 EventNode
         event = EventNode(
             title=data.get("title", "未知事件"),
@@ -183,22 +248,40 @@ Title: {evidence.title if evidence.title else 'N/A'}
             tags=data.get("tags", []),
             status=EventStatus(data.get("status", "confirmed")),
             confidence=float(data.get("confidence", 0.5)),
-            evidence_ids=[evidence.id]
+            evidence_ids=[evidence.id],
+            # Phase 18 fields
+            evidence_type=ev_type,
+            phase=data.get("phase", "unknown"),
+            date_precision=data.get("date_precision", "unknown"),
+            model_family=model_family,
+            version_line=version_line
         )
         
-        # 提取 Claims
         claims = []
         raw_claims = data.get("claims", [])
         if isinstance(raw_claims, list):
             source_credibility = evaluate_credibility(evidence.url, evidence.content)
-            for claim_text in raw_claims:
-                if not isinstance(claim_text, str) or not claim_text.strip():
+            for item in raw_claims:
+                # 向后兼容：同时支持字符串格式和 {claim, quote} 格式
+                if isinstance(item, str):
+                    # 旧格式：纯字符串
+                    claim_text = item.strip()
+                    quote_text = ""
+                elif isinstance(item, dict):
+                    # 新格式：{claim, quote} 对象
+                    claim_text = item.get("claim", "").strip()
+                    quote_text = item.get("quote", "").strip()
+                else:
+                    continue
+                
+                if not claim_text:
                     continue
                     
                 importance = heuristic_importance(claim_text, evidence.source.value, query)
                 
                 claims.append(Claim(
                     content=claim_text,
+                    canonical_text=_sanitize_quote(quote_text),  # 清理并截断原文引用
                     source_evidence_id=evidence.id,
                     credibility_score=source_credibility.score,
                     importance=importance,
