@@ -5,6 +5,7 @@ from ...agents.event_extractor import extract_event_from_evidence
 from ...agents.comment_extractor import extract_comments_from_article
 from ...core.models.comments import Comment
 from ...core.models.evidence import Evidence
+from ...config.settings import settings
 
 async def extract_events_node(state: GraphState) -> GraphState:
     """
@@ -65,7 +66,14 @@ async def extract_events_node(state: GraphState) -> GraphState:
 
     # 并发处理所有 Evidence 提取事件
     current_query = state.get("current_query", "")
-    tasks = [extract_event_from_evidence(ev, query=current_query) for ev in unique_evidences]
+    
+    # Use semaphore for concurrency control
+    sem = asyncio.Semaphore(settings.EXTRACTION_BATCH_SIZE)
+    async def _bounded_extract(ev):
+        async with sem:
+            return await extract_event_from_evidence(ev, query=current_query)
+
+    tasks = [_bounded_extract(ev) for ev in unique_evidences]
     results = await asyncio.gather(*tasks)
     
     # 过滤掉 None 的事件和声明

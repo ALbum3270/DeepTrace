@@ -142,19 +142,13 @@ class Settings:
     MAX_CANONICAL_TEXT_LENGTH = 200  # Max length for canonical text quotes
     
     # --- Phase 18: Advanced Event Modeling ---
-    VERSION_FAMILIES = {
-        "gpt-5-family": ["gpt-5", "gpt-5.1", "gpt-5.2", "gpt5"],
-        "gpt-4-family": ["gpt-4", "gpt-4o", "gpt-4-turbo", "gpt4"],
-        "gemini-family": ["gemini", "gemini 2", "gemini 3", "gemini pro", "gemini ultra"],
-        "claude-family": ["claude", "claude 3", "claude 4", "opus", "sonnet"],
-        "llama-family": ["llama", "llama 3", "llama 4"]
-    }
+    VERSION_FAMILIES = {} # Removed specific model families for generalization
     
     OFFICIAL_PRIORITY_WEIGHT = 1.5   # Events from official sources get 1.5x weight
     RUMOR_PENALTY_WEIGHT = 0.6       # Rumor/opinion events get 0.6x weight
     
     # Concurrency control
-    EXTRACTION_BATCH_SIZE = 2        # Process evidences in batches of 2 (Lowered to avoid 429)
+    EXTRACTION_BATCH_SIZE = 10        # Process evidences in batches of 3 (increased from 1 for better speed)
 
     
     @classmethod

@@ -129,7 +129,7 @@ async def _llm_verify_official(url: str, topic: str, snippet: str, model_name: s
     """
     system = "You are a strictly skeptical fact-checker. Output JSON only."
     user = f"""
-Analyze if the source is an OFFICIAL RELEASE ANNOUNCEMENT for: "{topic}".
+Analyze if the source is an OFFICIAL SOURCE VERIFICATION for: "{topic}".
 
 Source URL: {url}
 Snippet:
@@ -138,14 +138,14 @@ Snippet:
 Criteria:
 - Domain ownership: official company domain (e.g., openai.com), but exclude community/help/forum unless explicitly announcing the target topic.
 - Voice: written by company/staff, not community users/support forum.
-- Content: direct announcement/press release about THIS topic. Exclude other model updates (e.g., GPT-4/4o).
+- Content: direct confirmation or verification about THIS topic. Exclude other model updates (e.g., GPT-4/4o).
 
 Return JSON ONLY:
 {{
   "is_official_domain": true/false,
   "is_company_voice": true/false,
   "is_on_topic": true/false,
-  "classification": "Official Announcement" | "Official Forum/Help" | "News Media" | "Rumor" | "Off-topic",
+  "classification": "Official Source" | "Official Forum/Help" | "News Media" | "Rumor" | "Off-topic",
   "event_status": "Past/Confirmed" | "Future/Speculation" | "Unknown",
   "reasoning": "short explanation"
 }}

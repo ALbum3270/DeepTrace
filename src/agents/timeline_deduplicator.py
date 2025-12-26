@@ -16,11 +16,10 @@ def extract_versions(text: str) -> Set[str]:
     """Extract version numbers like '1.0', '2.0', '3.0', 'v4', 'GPT-4'."""
     import re
     # Match patterns like v1.0, 2.0, 3.5, but avoid simple dates like 2024.1.1
-    # Simple regex for x.y or vX versions
+    # v1.0, 2.0, 3.5, v4...
     matches = re.findall(r'(?:v|V)?\d+(?:\.\d+)+(?:\s*Pro|\s*Flash|\s*Ultra)?', text)
-    # Also match "Gemini 3", "GPT-4"
-    matches_named = re.findall(r'(?:Gemini|GPT|Llama)\s*-?\s*\d+(?:\.\d+)?', text, re.IGNORECASE)
-    return set([m.lower().strip() for m in matches + matches_named])
+    matches_simple = re.findall(r'[vV]\d+', text) # Also capture v4, V5 explicit
+    return set([m.lower().strip() for m in matches + matches_simple])
 
 def extract_years(text: str) -> Set[str]:
     """Extract years like 2024, 2025."""

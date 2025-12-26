@@ -2,6 +2,10 @@
 Event Extractor Agent: 负责从证据中提取事件节点。
 """
 import json
+try:
+    import json_repair
+except ImportError:
+    json_repair = None
 from typing import Optional
 from ..core.models.evidence import Evidence
 from ..core.models.events import EventNode, EventStatus
@@ -178,17 +182,65 @@ Title: {evidence.title if evidence.title else 'N/A'}
         
         if not content or not content.strip():
             print("[WARN] LLM returned empty response, skipping this evidence")
+            return None, []
+        
+        def _safe_json_load(text: str):
+            # 1. First try json_repair if available
+            if json_repair:
+                try:
+                    return json_repair.loads(text)
+                except Exception:
+                    pass
+            
+            # 2. Standard JSON load
+            try:
+                return json.loads(text)
+            except Exception:
+                pass
+            
+            # 3. Fallback: Extract substrings between { and }
+            start = text.find("{")
+            end = text.rfind("}")
+            if start != -1 and end != -1 and end > start:
+                substring = text[start : end + 1]
+                if json_repair:
+                    try:
+                        return json_repair.loads(substring)
+                    except Exception:
+                        pass
+                try:
+                    return json.loads(substring)
+                except Exception:
+                    pass
             return None
+
+        # Call safe load instead of strict json.loads
+        data = _safe_json_load(content)
         
-        data = json.loads(content)
+        if data is None:
+             print(f"[WARN] Failed to parse LLM response as JSON")
+             return None, []
         
+        # Handle list output (take first element)
+        if isinstance(data, list):
+            if len(data) > 0:
+                data = data[0]
+            else:
+                return None, []
+
         # 处理可能的嵌套结构
-        if "EventNode" in data and isinstance(data["EventNode"], dict):
-            data = data["EventNode"]
-        elif "event_node" in data and isinstance(data["event_node"], dict):
-            data = data["event_node"]
-        elif "event" in data and isinstance(data["event"], dict):
-            data = data["event"]
+        if isinstance(data, dict):
+            if "EventNode" in data and isinstance(data["EventNode"], dict):
+                data = data["EventNode"]
+            elif "event_node" in data and isinstance(data["event_node"], dict):
+                data = data["event_node"]
+            elif "event" in data and isinstance(data["event"], dict):
+                data = data["event"]
+        
+        # Final safety check
+        if not isinstance(data, dict):
+             print(f"[WARN] Invalid data format after parsing: {type(data)}")
+             return None, []
         
         # 解析时间
         time_value = None
