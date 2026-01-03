@@ -2,7 +2,8 @@ import re
 from typing import List, Set
 
 # Minimal default list for backward compatibility; no fallback/auto-allow.
-DEFAULT_TOKENS = ["gpt-5", "gpt5", "gpt 5", "gpt-4", "gpt4", "gpt-4o", "gpt 4o", "gpt-4.1", "gpt 4.1"]
+# Minimal default list for backward compatibility; no fallback/auto-allow.
+DEFAULT_TOKENS = []
 
 
 def extract_tokens(text: str, extra_tokens: List[str] = None) -> List[str]:

@@ -57,9 +57,11 @@ class TrustScorer:
             return True
             
         # 2. Strict Quote + Speaker Regex
+        # 2. Strict Quote + Speaker Regex
         # Matches: "QUOTE" ... Name
-        quote_pattern = r'["“](.*?)["”]\s*[-—]\s*(?:Sam|Greg|Mira|Altman|Brockman|Murati|OpenAI)'
-        if re.search(quote_pattern, content, re.IGNORECASE):
+        # Generic pattern for named attribution
+        quote_pattern = r'["“](.*?)["”]\s*[-—]\s*([A-Z][a-z]+ [A-Z][a-z]+)'
+        if re.search(quote_pattern, content):
             return True
             
         return False
@@ -78,9 +80,7 @@ class TrustScorer:
         score = 0.5 # Default base score
         
         # 1. Domain-based scoring
-        if any(d in url for d in ["openai.com", "microsoft.com", "arxiv.org"]):
-            score = 1.0
-        elif any(d in url for d in TrustScorer.TRUSTED_DOMAINS):
+        if any(d in url for d in TrustScorer.TRUSTED_DOMAINS):
             score = 0.9
         elif source_val == "news" or evidence.type == "article":
             score = 0.75
@@ -340,13 +340,7 @@ class ProvenanceVerifier:
                     })
                     continue
                 
-                # Legacy check for pure paradoxes (fallback)
-                if self._check_paradox(ev, root_anchor, root_time):
-                    result.rejected_claims.append({
-                        "claim": ev.title, 
-                        "reason": f"Causality Violation: Predates Root Entity ({root_anchor.title})"
-                    })
-                    continue
+
                 
                 # Check 2: Conflict Resolution (Reporting Error)
                 if concept == "unknown" and "release" in title and root_time:
@@ -394,22 +388,7 @@ class ProvenanceVerifier:
         return result
 
     def _check_paradox(self, ev: Evidence, anchor: Evidence, anchor_time: Optional[FuzzyTime]) -> bool:
-        """Specific logic for the GPT-5.1 vs 2023 paradox."""
-        if not anchor_time: return False
-        
-        # Enhanced Paradox Check: Check Title AND Content
-        content = (ev.content or "").lower()
-        title = (ev.title or "").lower()
-        
-        # If it claims to be a successor ("5.1", "next version")
-        if "gpt-5.1" in title or "gpt-5.1" in content or "next version" in content:
-            # Child node. Must start >= anchor start.
-            ev_date_str = ev.publish_time.strftime("%Y-%m-%d") if ev.publish_time else None
-            ev_time = FuzzyTime.from_string(ev_date_str)
-            
-            # If Child Time < Anchor Time -> Causal Violation
-            if ev_time and ev_time.start < anchor_time.start:
-                return True # Paradox!
+        """Deprecated: Specific paradox logic removed for generalization."""
         return False
 
     def summarize_for_prompt(self, evidences: List[Evidence]) -> Dict[str, Any]:

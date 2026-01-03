@@ -1,0 +1,73 @@
+Implementation Plan: Timeline-First Architecture
+Goal: Transform DeepTrace into a "Timeline-First" research engine where a verifiable, source-backed timeline document is the primary source of truth for the final report.
+
+Design Philosophy
+Fact-First: No report generation until a structured timeline is built and audited.
+Incremental: Research proceeds in loops (Batch Search -> Extract -> Merge) until a stop condition is met.
+Legacy-Inspired:
+GainScore (from Legacy): Used to determine when to stop researching (diminishing returns).
+Verification Queue (from Legacy): Explicitly tracking claims that need cross-check.
+Open Questions (from Legacy): Driving the next batch of search queries.
+Data Structures
+1. Timeline Document (TimelineDoc)
+A structured collection of events, serving as the "Fact Database".
+
+class TimelineEvent(BaseModel):
+    date: str  # YYYY-MM-DD or "Unknown"
+    description: str
+    source_url: str
+    confidence: float  # 0.0 - 1.0
+    status: Literal["Verified", "Disputed", "Unverified"]
+    tags: List[str]
+class TimelineDoc(BaseModel):
+    events: List[TimelineEvent]
+    start_date: Optional[str]
+    end_date: Optional[str]
+    metadata: Dict[str, Any]  # Coverage stats, last updated
+2. Research State (
+GlobalState
+) upgrades
+class GlobalState(TypedDict):
+    # ... existing fields ...
+    timeline: List[TimelineEvent]  # The growing fact base
+    search_queue: List[str]        # Next queries (Open Questions)
+    visited_urls: Set[str]         # Deduplication (GPT-Researcher style)
+    verification_queue: List[str]  # Claims needing check (Legacy style)
+    gain_score: float              # Current information gain logic
+    iteration_count: int
+Proposed Changes
+Component 1: The Timeline Engine (src/core/timeline/)
+[NEW] manager.py
+Class: TimelineManager
+Method: merge_batch(new_events)
+Algorithm: Fuzzy match new events against existing.
+If match: Append source, update confidence, mark conflict if description differs.
+If new: Add to timeline.
+Returns: Gain metrics (how many new items? how many confirmed?).
+Component 2: Research Nodes (src/graph/nodes/)
+[NEW] extraction_node.py
+Input: Raw HTML/Text from search.
+Logic: LLM extracts TimelineEvent objects.
+Constraint: MUST extract URL from context.
+[NEW] planning_node.py (The Brain)
+Logic:
+Calculate GainScore: (New Events * 1.0) + (Confirmed Events * 0.5).
+Check Stop Conditions: GainScore < Threshold OR Max Iterations OR Coverage Met.
+If NOT stop: Generate next queries based on Open Questions (gaps in timeline).
+Update search_queue.
+[MODIFY] finalizer.py
+Logic:
+Strict Mode: ONLY read from state['timeline'].
+Structure: Group by Date.
+Citation: Every claim in text MUST link to TimelineEvent.source_url.
+Metrics: Output "Timeline Coverage" and "Time from Last Event" in header.
+Verification Plan
+Automated Tests
+Merge Logic: Unit test TimelineManager.merge_batch with duplicate and conflicting events.
+Stop Strategy: Mock search results with diminishing returns, verify planning_node signals stop.
+Audit Script: audit_timeline.py – ensures Final Report claims exist in Timeline object.
+Manual Verification
+Run DeepTrace on "GPT-5 Release Date".
+Inspect intermediate timeline.json.
+Verify Final Report citations match timeline.json URLs.
+Confirm loop stopped automatically when no new info was found.

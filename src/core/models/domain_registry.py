@@ -18,7 +18,7 @@ OFFICIAL_DOMAINS = {
     "blog.google": 98.0,
     "deepmind.com": 95.0,
     "deepmind.google": 95.0,
-    "gemini.google.com": 98.0,
+
     "microsoft.com": 95.0,
     "azure.microsoft.com": 95.0,
     "anthropic.com": 95.0,

@@ -76,11 +76,12 @@ class StorageManager:
     def save_report(self, run_dir: Path, report_md: str) -> None:
         (run_dir / "report.md").write_text(report_md, encoding="utf-8")
 
-    def _slugify(self, topic: str) -> str:
-        # 非严格版：够用即可
+    def _slugify(self, topic: str, max_len: int = 50) -> str:
+        # 非严格版：够用即可，限制长度避免 Windows 路径过长
         s = topic.strip().lower()
         for ch in " ，。！？!?:：/\\" :
             s = s.replace(ch, "-")
         allowed = "abcdefghijklmnopqrstuvwxyz0123456789-_"
         s = "".join(ch for ch in s if ch in allowed)
-        return s or "topic"
+        # Truncate to avoid Windows MAX_PATH (260 chars) issues
+        return (s[:max_len] if s else "topic").rstrip("-")
