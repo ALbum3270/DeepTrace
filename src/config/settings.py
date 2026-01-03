@@ -123,15 +123,10 @@ class Settings:
 
     # --- Phase 17: Strict Truth Constraints ---
     # Official domains (for automatic OFFICIAL evidence_type)
-    OFFICIAL_DOMAINS = {
-        "openai.com", "blog.openai.com",
-        "google.com", "blog.google", "deepmind.com",
-        "microsoft.com", "azure.microsoft.com",
-        "anthropic.com",
-        "meta.com", "ai.meta.com",
-        "gov.cn", "xinhuanet.com", "people.com.cn",
-        "apple.com", "developer.apple.com"
-    }
+    # Official domains (for automatic OFFICIAL evidence_type)
+    # Imported from domain_registry to maintain Single Source of Truth
+    from ..core.models.domain_registry import OFFICIAL_DOMAIN_SET
+    OFFICIAL_DOMAINS = OFFICIAL_DOMAIN_SET
     
     # Truth thresholds
     OFFICIAL_SOURCE_MIN_CONF = 0.90  # Official sources can achieve 90%+ confidence

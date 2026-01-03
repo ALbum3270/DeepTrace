@@ -284,7 +284,8 @@ class ProvenanceVerifier:
         root_anchor = None
         for ev, trust in zone_a:
             title = (ev.title or "").lower()
-            if "gpt-5" in title and any(kw in title for kw in ["release", "launch", "announce", "official"]):
+            # Generalization: Look for ANY high-trust release event as anchor
+            if any(kw in title for kw in ["release", "launch", "announce", "official"]):
                 root_anchor = ev
                 break
         
@@ -305,7 +306,7 @@ class ProvenanceVerifier:
                 # Heuristic Concept Mapping
                 concept = "unknown"
                 if "training" in title or "trained" in content: concept = "training"
-                elif "gpt-5.1" in title or "successor" in content: concept = "successor"
+                elif "successor" in title or "successor" in content or "next version" in content: concept = "successor"
                 elif "safety" in title and "test" in title: concept = "safety_testing"
                 
                 # Check Rules against Anchor

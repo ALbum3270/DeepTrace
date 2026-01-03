@@ -136,9 +136,9 @@ Snippet:
 {snippet[:800]}
 
 Criteria:
-- Domain ownership: official company domain (e.g., openai.com), but exclude community/help/forum unless explicitly announcing the target topic.
+- Domain ownership: official company domain (e.g., company's main site), but exclude community/help/forum unless explicitly announcing the target topic.
 - Voice: written by company/staff, not community users/support forum.
-- Content: direct confirmation or verification about THIS topic. Exclude other model updates (e.g., GPT-4/4o).
+- Content: direct confirmation or verification about THIS topic. Exclude unrelated product updates.
 
 Return JSON ONLY:
 {{
