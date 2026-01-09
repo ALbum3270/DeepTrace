@@ -10,12 +10,17 @@ from pydantic import BaseModel, Field
 class DocumentSnapshot(BaseModel):
     doc_id: str
     final_url: Optional[str] = None
+    doc_key: Optional[str] = None  # normalized URL key for CDC
+    doc_version_id: Optional[str] = None  # stable version id for this doc_key+content
     cleaned_text: str
     text_digest: str
     normalization_version: str
     content_hash: Optional[str] = None
     doc_key_preview: Optional[str] = None
     doc_version_id_preview: Optional[str] = None
+    fetched_at: Optional[str] = None
+    run_id: Optional[str] = None
+    source: Optional[str] = None
     extractor_version: Optional[str] = None
     doc_quality_flags: List[str] = Field(default_factory=list)
     sentence_splitter_backend: Optional[str] = None
@@ -51,6 +56,8 @@ class IndexManifest(BaseModel):
 
 class EvidenceRef(BaseModel):
     doc_id: str
+    doc_key: Optional[str] = None
+    doc_version_id: Optional[str] = None
     chunk_id: Optional[str] = None
     sentence_ids: List[str] = Field(default_factory=list)
     offsets: Optional[List[int]] = None
@@ -82,4 +89,3 @@ class Gate1Entry(BaseModel):
 class Gate1Report(BaseModel):
     entries: List[Gate1Entry] = Field(default_factory=list)
     key_claim_locatable_rate: Optional[float] = None
-

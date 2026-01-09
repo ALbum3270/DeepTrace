@@ -31,6 +31,7 @@ async def gate1_evidence_audit_node(state: Dict[str, Any], config) -> Dict[str, 
     doc = state.get("document_snapshot", {}) or {}
     sentences = state.get("sentence_meta", []) or []
     structured_report = state.get("structured_report", {}) or {}
+    doc_drift_by_key = state.get("doc_drift_by_key") or {}
     # structured_report expected format: items: [{event_id, role}] or sections[*].items[*]
     roles = {}
     for it in structured_report.get("items", []):
@@ -53,6 +54,8 @@ async def gate1_evidence_audit_node(state: Dict[str, Any], config) -> Dict[str, 
         event_id = item.get("event_id", "")
         role = roles.get(event_id)
         doc_ref = (item.get("doc_ref") or {})
+        doc_key = doc_ref.get("doc_key") or doc.get("doc_key")
+        drift_status = doc_drift_by_key.get(doc_key) if doc_key else None
         quote = doc_ref.get("evidence_quote") or ""
         reason = doc_ref.get("unlocatable_reason")
         sentence_ids = doc_ref.get("sentence_ids") or []
@@ -80,6 +83,8 @@ async def gate1_evidence_audit_node(state: Dict[str, Any], config) -> Dict[str, 
             else:
                 severity = "SOFT" if role == "key_claim" else "WARN"
                 message = "Quote not reproducible"
+                if drift_status == "CHANGED_SINCE_LAST_SEEN":
+                    message = "Quote not reproducible (possible doc drift)"
 
         entries.append(Gate1Entry(event_id=event_id, severity=severity, message=message, role=role))
 

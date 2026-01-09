@@ -53,6 +53,8 @@ async def build_facts_index_v2_node(state: Dict[str, Any], config) -> Dict[str, 
     events = state.get("events", [])  # expected list of dicts with event_id/url/credibility_tier/evidence_hint?/sentence_ids?
     normalization_version = state.get("normalization_version", "unknown")
     doc_id = state.get("doc_id", "unknown")
+    doc_key = state.get("doc_key")
+    doc_version_id = state.get("doc_version_id")
 
     evidence_items = []
     for ev in events:
@@ -106,6 +108,8 @@ async def build_facts_index_v2_node(state: Dict[str, Any], config) -> Dict[str, 
 
         doc_ref = EvidenceRef(
             doc_id=doc_id,
+            doc_key=doc_key,
+            doc_version_id=doc_version_id,
             chunk_id=ref.get("chunk_id"),
             sentence_ids=sentence_ids,
             offsets=offsets,
