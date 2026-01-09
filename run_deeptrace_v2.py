@@ -18,6 +18,9 @@ import uuid
 import logging
 from datetime import datetime
 
+# Phase1 Sidecar Toggle (set DEEPTRACE_PHASE1_SIDECAR=1 to enable)
+PHASE1_SIDECAR_ENABLED = os.getenv("DEEPTRACE_PHASE1_SIDECAR", "0") == "1"
+
 # Setup Logging
 logging.basicConfig(
     level=logging.INFO,
@@ -49,6 +52,10 @@ from src.graph.graph_v2 import app_v2
 from src.config.settings import settings
 from src.core.utils.topic_filter import extract_tokens
 from src.core.utils.llm_safety import safe_ainvoke
+
+# Phase1 sidecar (conditional import)
+if PHASE1_SIDECAR_ENABLED:
+    from src.graph.nodes.phase1_sidecar import phase1_sidecar_node
 
 
 def _resolve_suggestion_model() -> str:
@@ -167,6 +174,7 @@ async def run_deeptrace(query: str):
         "research_brief": f"Research goal: {clarified_query}",
         "enabled_policies_snapshot": {},
         "timeline": [],
+        "evidences": [],  # Phase1 sidecar will consume this
         "research_notes": [],
         "investigation_log": [],
         "executed_tools": [],
@@ -181,12 +189,20 @@ async def run_deeptrace(query: str):
     config = {"configurable": {"thread_id": str(uuid.uuid4())}, "recursion_limit": 20}
     
     final_output = None
+    accumulated_state = dict(initial_state)  # Track accumulated state for sidecar
     
     async for event in app_v2.astream(initial_state, config=config):
         for node_name, state_update in event.items():
             if state_update is None:
                 continue
             logger.info(f"\n--- Node: {node_name} ---")
+            
+            # Accumulate state updates for Phase1 sidecar
+            for key, val in state_update.items():
+                if isinstance(val, list) and key in accumulated_state and isinstance(accumulated_state[key], list):
+                    accumulated_state[key] = accumulated_state[key] + val
+                else:
+                    accumulated_state[key] = val
             
             # 1. Handle Messages (Supervisor/Debater output)
             if "messages" in state_update:
@@ -233,6 +249,21 @@ async def run_deeptrace(query: str):
         logger.info("Content Preview:\n" + final_output[:500] + "...")
     else:
         logger.error("\n❌ No final report generated.")
+
+    # ========== Phase1 Sidecar Hook ==========
+    if PHASE1_SIDECAR_ENABLED:
+        evidences = accumulated_state.get("evidences") or []
+        timeline = accumulated_state.get("timeline") or []
+        if evidences:
+            logger.info(f"\n🔬 Phase1 Sidecar: Processing {len(evidences)} evidences, {len(timeline)} events...")
+            try:
+                sidecar_result = await phase1_sidecar_node(accumulated_state, config)
+                logger.info(f"✅ Phase1 Sidecar completed: {sidecar_result.get('phase1_archive', 'N/A')}")
+            except Exception as e:
+                logger.warning(f"⚠️ Phase1 Sidecar failed: {e}")
+        else:
+            logger.info("\n⚠️ Phase1 Sidecar skipped: no evidences available")
+    # ========================================
 
 if __name__ == "__main__":
     # You can change the query here

@@ -31,6 +31,9 @@ class WorkerState(TypedDict):
     # Output: conflict candidates detected in worker extraction
     conflict_candidates: Annotated[List[dict], operator.add]
 
+    # Output: evidences with full_content for Phase1 sidecar
+    evidences: Annotated[List[dict], operator.add]
+
     # Required topic tokens to keep the worker on-topic
     required_tokens: List[str]
 
@@ -77,6 +80,9 @@ class GlobalState(TypedDict):
 
     # Aggregated conflict candidates from workers (pruned/merged in nodes)
     conflict_candidates: List[dict]
+
+    # Aggregated evidences with full_content (for Phase1 sidecar)
+    evidences: Annotated[List[dict], operator.add]
 
     # Cache of processed conflict candidate IDs (to avoid re-trigger loops)
     conflict_candidate_cache: List[str]

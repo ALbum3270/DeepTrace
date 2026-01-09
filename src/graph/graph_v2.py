@@ -200,6 +200,7 @@ async def worker_node(state: GlobalState, config) -> dict:
             "timeline": [],
             "messages": [],
             "investigation_log": [],
+            "evidences": [],
         }
         new_candidates = []
 
@@ -220,6 +221,8 @@ async def worker_node(state: GlobalState, config) -> dict:
                 result["research_notes"].append(notes)
             if worker_output.get("timeline"):
                 result["timeline"].extend(worker_output["timeline"])
+            if worker_output.get("evidences"):
+                result["evidences"].extend(worker_output["evidences"])
             if worker_output.get("conflict_candidates"):
                 for candidate in worker_output["conflict_candidates"]:
                     if not candidate:
@@ -249,6 +252,8 @@ async def worker_node(state: GlobalState, config) -> dict:
             result.pop("research_notes")
         if not result["timeline"]:
             result.pop("timeline")
+        if not result["evidences"]:
+            result.pop("evidences")
         if not result["messages"]:
             result.pop("messages")
         if not result["investigation_log"]:

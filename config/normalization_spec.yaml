@@ -1,0 +1,8 @@
+# Normalization spec placeholder for Phase1.
+# Record Unicode normalization, whitespace handling, punctuation, etc.
+normalization_version: "v1"
+policies:
+  - name: "unicode_nfkc"
+  - name: "whitespace_collapse"
+  - name: "fullwidth_to_halfwidth"
+  - name: "strip_control_chars"
