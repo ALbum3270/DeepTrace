@@ -6,7 +6,17 @@ Orchestrates the investigation process by delegating tasks to workers or providi
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables import RunnableConfig
-from langchain.chat_models import init_chat_model
+try:
+    from langchain.chat_models import init_chat_model  # type: ignore
+except ImportError:
+    from langchain_openai import ChatOpenAI  # type: ignore
+    def init_chat_model(model: str, temperature=0, model_provider=None, **kwargs):
+        return ChatOpenAI(
+            model=model,
+            openai_api_key=settings.openai_api_key,
+            openai_api_base=settings.openai_base_url,
+            temperature=temperature,
+        )
 
 from src.graph.state_v2 import GlobalState
 from src.core.models_v2 import ConductResearch, FinalAnswer, ResolveConflict, BreadthResearch, DepthResearch
@@ -19,7 +29,7 @@ from src.core.utils.topic_filter import matches_tokens
 
 # Default Model for Supervisor (Needs reasoning capability)
 DEFAULT_SUPERVISOR_MODEL = settings.model_name or "gpt-4o"
-MAX_RESEARCH_ROUNDS = 3  # simple guardrail to avoid infinite research
+MAX_RESEARCH_ROUNDS = 2  # Lower threshold to converge faster in testing
 CONFLICT_CANDIDATE_CACHE_MAX = 200
 MAX_CONFLICT_CANDIDATES = 200
 
@@ -108,6 +118,10 @@ async def supervisor_node(state: GlobalState, config: RunnableConfig):
     # Track research cycles to enforce a soft cap
     executed = state.get("executed_tools", [])
     research_calls = sum(1 for t in executed if t.get("name") in ("ConductResearch", "BreadthResearch", "DepthResearch"))
+    # Debug: print current research call count
+    import logging
+    _logger = logging.getLogger("DeepTrace")
+    _logger.info(f"📊 Supervisor: research_calls={research_calls}/{MAX_RESEARCH_ROUNDS}, executed_tools={len(executed)}")
 
     def _conflict_key_from_payload(payload: dict) -> tuple:
         topic = (payload.get("topic") or "").strip().lower()

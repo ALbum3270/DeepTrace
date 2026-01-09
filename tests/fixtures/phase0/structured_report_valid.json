@@ -1,0 +1,22 @@
+{
+  "report_id": "r1",
+  "run_id": "r1",
+  "generated_at": "2025-01-01T00:00:00Z",
+  "sections": [
+    {
+      "section_id": "executive_summary",
+      "title": "Executive Summary",
+      "items": [
+        {
+          "item_id": 1,
+          "item_text": "Launch happened on 2025-01-01",
+          "role": "key_claim",
+          "event_ids": ["ev-001"],
+          "assertion_strength": "neutral",
+          "dispute_status": "none",
+          "conflict_group_id": null
+        }
+      ]
+    }
+  ]
+}

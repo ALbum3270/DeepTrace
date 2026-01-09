@@ -1,0 +1,20 @@
+{
+  "run_id": "test_warn_001",
+  "generated_at": "2026-01-06T12:00:00Z",
+  "facts": [
+    {
+      "event_id": "evt_001",
+      "title": "Price Change Announcement",
+      "topic": "finance",
+      "date": "2026-01-05",
+      "evidences": [
+        {
+          "url": "https://finance.example.com/news/price-hike",
+          "evidence_quote": "Prices will increase by 15% effective March 2026.",
+          "credibility_tier": "reputable_media",
+          "retrieval_ts": "2026-01-06T10:00:00Z"
+        }
+      ]
+    }
+  ]
+}

@@ -18,7 +18,7 @@ TAVILY_SEARCH_DESCRIPTION = (
 )
 
 
-@tool(description=TAVILY_SEARCH_DESCRIPTION)
+@tool
 async def tavily_search_tool(
     queries: List[str],
     max_results: Annotated[int, InjectedToolArg] = 5,
@@ -92,16 +92,11 @@ async def tavily_search_async(
     include_raw_content: bool = False,  # Default false to save bandwidth unless needed
     config: RunnableConfig = None,
 ):
-    """Execute multiple Tavily search queries asynchronously with a mock fallback."""
-
-    # Explicit offline short-circuit (useful when network access is blocked)
-    if os.getenv("DEEPTRACE_OFFLINE", "").lower() in {"1", "true", "yes"}:
-        return [_mock_results(q) for q in search_queries]
+    """Execute multiple Tavily search queries asynchronously."""
 
     api_key = get_tavily_api_key(config)
     if not api_key:
-        # Fallback: return simple mock responses to keep the pipeline alive
-        return [_mock_results(q) for q in search_queries]
+        raise ValueError("TAVILY_API_KEY is required. Please set the environment variable.")
 
     tavily_client = AsyncTavilyClient(api_key=api_key)
 
@@ -116,18 +111,17 @@ async def tavily_search_async(
     ]
 
     try:
-        # Guard against network stalls; fallback to mocks on timeout or errors.
         results = await asyncio.wait_for(
             asyncio.gather(*tasks, return_exceptions=True),
             timeout=30,
         )
-    except Exception:
-        return [_mock_results(q) for q in search_queries]
+    except asyncio.TimeoutError:
+        raise TimeoutError("Tavily search timed out after 30 seconds")
 
     cleaned_results = []
     for query, res in zip(search_queries, results):
         if isinstance(res, Exception):
-            cleaned_results.append(_mock_results(query))
+            raise res  # Propagate actual errors instead of hiding them
         else:
             cleaned_results.append(res)
     return cleaned_results
@@ -143,20 +137,6 @@ def get_tavily_api_key(config: RunnableConfig) -> Optional[str]:
 
     # Priority 2: Environment Variable
     return os.getenv("TAVILY_API_KEY")
-
-
-def _mock_results(query: str) -> dict:
-    """Lightweight offline fallback when no Tavily key is configured."""
-    return {
-        "query": query,
-        "results": [
-            {
-                "title": "Mock result (no Tavily API key configured)",
-                "url": "https://example.com/mock",
-                "content": f"Placeholder content for '{query}'. Please configure TAVILY_API_KEY for live search.",
-            }
-        ],
-    }
 
 
 def score_result(item: dict) -> float:

@@ -1,0 +1,12 @@
+[
+  {
+    "section_id": "executive_summary",
+    "item_id": 1,
+    "item_text": "Launch happened on 2025-01-01",
+    "role": "key_claim",
+    "event_ids": ["ev-001"],
+    "assertion_strength": "neutral",
+    "dispute_status": "none",
+    "conflict_group_id": null
+  }
+]

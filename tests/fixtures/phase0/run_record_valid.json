@@ -1,0 +1,27 @@
+{
+  "run_id": "00000000-0000-0000-0000-000000000000",
+  "archived_at": "2026-01-07T00:00:00Z",
+  "objective": "Example objective",
+  "original_query": "Example query",
+  "renderer_version": "phase0_markdown_renderer_v1",
+  "artifacts": {
+    "facts_index_path": "data/runs/00000000-0000-0000-0000-000000000000/facts_index.json",
+    "structured_report_path": "data/runs/00000000-0000-0000-0000-000000000000/structured_report.json",
+    "report_citations_path": "data/runs/00000000-0000-0000-0000-000000000000/report_citations.json",
+    "gate_report_path": "data/runs/00000000-0000-0000-0000-000000000000/gate_report.json",
+    "final_report_path": "data/runs/00000000-0000-0000-0000-000000000000/final_report.md"
+  },
+  "enabled_policies_snapshot": {
+    "phase": "phase0",
+    "renderer_version": "phase0_markdown_renderer_v1",
+    "gate2_severity_config_path": "tests/fixtures/phase0/gate2_severity_test.yaml",
+    "gate2_severity": {
+      "event_id_not_in_facts_index": "HARD",
+      "key_claim_missing_event_ids": "HARD",
+      "disputed_must_be_hedged": "HARD",
+      "disputed_needs_multiple_events": "HARD",
+      "strong_word_in_disputed": "HARD",
+      "must_be_key_claim": "WARN"
+    }
+  }
+}

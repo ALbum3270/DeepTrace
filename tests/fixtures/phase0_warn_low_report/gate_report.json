@@ -1,0 +1,16 @@
+{
+  "summary": {
+    "hard": 0,
+    "soft": 0,
+    "warn": 1
+  },
+  "violations": [
+    {
+      "severity": "WARN",
+      "rule_id": "must_be_key_claim",
+      "item_id": 1,
+      "details": "item looks like a key claim but role is not key_claim"
+    }
+  ],
+  "facts_index_size": 1
+}

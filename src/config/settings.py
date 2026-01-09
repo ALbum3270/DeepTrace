@@ -48,10 +48,16 @@ class Settings:
     comment_promotion_threshold: float = 0.7
     
     # Fetcher Configuration
-    fetcher_mode = os.getenv("FETCHER_MODE", "auto")  # auto / mock / serpapi
+    fetcher_mode = os.getenv("FETCHER_MODE", "auto")  # auto / serpapi
     serpapi_key = os.getenv("SERPAPI_KEY", "")
     serpapi_engine = os.getenv("SERPAPI_ENGINE", "google")
     serpapi_num_results = int(os.getenv("SERPAPI_NUM_RESULTS", "10"))
+
+    # Gate2 Severity Config (Phase 0)
+    gate2_severity_config = os.getenv("GATE2_SEVERITY_CONFIG", "configs/gate2_severity_phase0.yaml")
+
+    # Similarity threshold for duplicate detection
+    SEMANTIC_SIMILARITY_THRESHOLD = float(os.getenv("SEMANTIC_SIMILARITY_THRESHOLD", "0.85"))
 
     # --- Evidence Depth Configuration ---
     # Mode: auto (AI decides), quick, balanced, deep

@@ -6,7 +6,7 @@ from src.core.models.events import EventNode
 from src.core.models.evidence import Evidence
 from src.core.models.timeline import Timeline
 from src.core.models.strategy import SearchStrategy
-from src.graph.workflow import should_continue
+# Legacy import removed: should_continue no longer exists in workflow.py
 from src.core.models.plan import RetrievalPlan, SearchQuery
 
 @pytest.mark.asyncio

@@ -1,0 +1,34 @@
+{
+  "run_id": "test_hard_002",
+  "generated_at": "2026-01-06T12:00:00Z",
+  "facts": [
+    {
+      "event_id": "evt_001",
+      "title": "Allegation from Source A",
+      "topic": "scandal",
+      "date": "2026-01-03",
+      "evidences": [
+        {
+          "url": "https://outlet-a.example.com/allegation",
+          "evidence_quote": "Source A alleges misconduct.",
+          "credibility_tier": "reputable_media",
+          "retrieval_ts": "2026-01-06T10:00:00Z"
+        }
+      ]
+    },
+    {
+      "event_id": "evt_002",
+      "title": "Denial from Source B",
+      "topic": "scandal",
+      "date": "2026-01-03",
+      "evidences": [
+        {
+          "url": "https://outlet-b.example.com/denial",
+          "evidence_quote": "Source B denies the allegations.",
+          "credibility_tier": "reputable_media",
+          "retrieval_ts": "2026-01-06T10:30:00Z"
+        }
+      ]
+    }
+  ]
+}

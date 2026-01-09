@@ -14,6 +14,7 @@ from src.graph.nodes.supervisor import supervisor_node
 from src.graph.nodes.finalizer import finalizer_node
 from src.graph.nodes.debater_postprocess import debater_postprocess
 from src.graph.nodes.timeline_merge import timeline_merge_node
+from src.graph.nodes.archive_node import archive_run_node
 from src.graph.subgraphs.worker import worker_app
 from src.core.tools.debater import debater_tool
 from src.core.tools.thinking import think_tool
@@ -44,6 +45,9 @@ def _conflict_key(topic: str, claims: list, source_ids: list) -> tuple:
         tuple(sorted(set(claims or []))),
     )
 
+# Hard limit for graph iterations to prevent runaway loops
+MAX_GRAPH_ITERATIONS = 8
+
 # Router Logic
 def route_supervisor(state: GlobalState) -> Literal[
     "worker",
@@ -56,7 +60,18 @@ def route_supervisor(state: GlobalState) -> Literal[
 ]:
     """
     Decides the next node based on the Supervisor's Tool Call.
+    Priority: FinalAnswer > Research tools > ResolveConflict > think_tool
+    
+    Hard stop: If executed_tools count exceeds MAX_GRAPH_ITERATIONS, force finalize.
     """
+    # Hard stop check: force finalize if too many iterations
+    executed_tools = state.get("executed_tools", [])
+    if len(executed_tools) >= MAX_GRAPH_ITERATIONS:
+        import logging
+        logging.getLogger("DeepTrace").warning(
+            f"⚠️ Hard stop: {len(executed_tools)} tool calls reached limit ({MAX_GRAPH_ITERATIONS}). Forcing finalize."
+        )
+        return "timeline_merge"
     messages = state.get("messages", [])
     if not messages:
         return "timeline_merge"
@@ -75,14 +90,25 @@ def route_supervisor(state: GlobalState) -> Literal[
     # Check for Tool Calls
     if hasattr(last_message, "tool_calls") and last_message.tool_calls:
         tool_names = {tc.get("name") for tc in last_message.tool_calls if tc.get("name")}
-        if "think_tool" in {n.lower() for n in tool_names if isinstance(n, str)}:
-            return "thinking"
+        lower_tool_names = {n.lower() for n in tool_names if isinstance(n, str)}
+        has_research = any(n in ("ConductResearch", "BreadthResearch", "DepthResearch") for n in tool_names)
+        
+        # Priority 1: FinalAnswer - always finalize first
         if "FinalAnswer" in tool_names:
             return "timeline_merge"
+        
+        # Priority 2: Research tools - these are the main work
+        if has_research:
+            # If think_tool is mixed with research calls, still route to worker to avoid ToolNode errors
+            return "worker"
+        
+        # Priority 3: Conflict resolution
         if "ResolveConflict" in tool_names:
             return "debater"
-        if any(n in ("ConductResearch", "BreadthResearch", "DepthResearch") for n in tool_names):
-            return "worker"
+        
+        # Priority 4: Thinking (only if no other actionable tools)
+        if "think_tool" in lower_tool_names:
+            return "thinking"
             
     # Default fallback (safety net)
     return "timeline_merge"
@@ -270,6 +296,7 @@ def build_graph_v2():
     workflow.add_node("debater_postprocess", debater_postprocess)
     workflow.add_node("timeline_merge", timeline_merge_node)
     workflow.add_node("finalizer", finalizer_node)
+    workflow.add_node("archive", archive_run_node)
 
     # 2. Add Edges
     workflow.add_edge(START, "clarify")
@@ -293,10 +320,11 @@ def build_graph_v2():
     # Loop back from nodes to Supervisor
     workflow.add_edge("worker", "supervisor")
     workflow.add_edge("timeline_merge", "finalizer")
+    workflow.add_edge("finalizer", "archive")
     workflow.add_edge("debater", "debater_postprocess")
     workflow.add_edge("debater_postprocess", "supervisor")
     workflow.add_edge("thinking", "supervisor")
-    workflow.add_edge("finalizer", END)
+    workflow.add_edge("archive", END)
     
     # 3. Compile
     checkpointer = MemorySaver()

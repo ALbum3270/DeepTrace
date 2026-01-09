@@ -1,0 +1,32 @@
+[
+  {
+    "section_id": "sec_summary",
+    "item_id": 1,
+    "item_text": "On 2026-01-05, the company announced a new product launch.",
+    "role": "key_claim",
+    "event_ids": ["evt_001"],
+    "assertion_strength": "strong",
+    "dispute_status": "none",
+    "conflict_group_id": null
+  },
+  {
+    "section_id": "sec_analysis",
+    "item_id": 2,
+    "item_text": "Media coverage was generally positive.",
+    "role": "support",
+    "event_ids": ["evt_002"],
+    "assertion_strength": "neutral",
+    "dispute_status": "none",
+    "conflict_group_id": null
+  },
+  {
+    "section_id": "sec_analysis",
+    "item_id": 3,
+    "item_text": "Social media reactions were mixed, suggesting some uncertainty about timing.",
+    "role": "analysis",
+    "event_ids": ["evt_003"],
+    "assertion_strength": "hedged",
+    "dispute_status": "none",
+    "conflict_group_id": null
+  }
+]

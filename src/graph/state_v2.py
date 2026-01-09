@@ -43,7 +43,14 @@ class GlobalState(TypedDict):
 
     # Input: Original User Query
     original_query: str
-    
+
+    # Tracking: Run/session identifier (for artifact naming)
+    run_id: str
+    # Metadata: optional archive path for the run record
+    run_record_path: str
+    # Snapshot of enabled policies/config (for audit)
+    enabled_policies_snapshot: dict
+
     # Derived: Research objective (can be refined by clarification node)
     objective: str
 
@@ -64,7 +71,7 @@ class GlobalState(TypedDict):
     # In Phase 3, the 'Debater' will curate this list.
     timeline: Annotated[List[dict], operator.add]
     investigation_log: Annotated[List[str], operator.add]
-    
+
     # Aggregated Research: Notes from Worker executions
     research_notes: Annotated[List[str], operator.add]
 
@@ -77,9 +84,14 @@ class GlobalState(TypedDict):
     # Conflict tracking: Debater verdicts and dispute metadata
     conflicts: Annotated[List[dict], operator.add]
 
+    # Phase 0 structured artifacts (optional; populated by finalizer pipeline)
+    facts_index: dict
+    structured_report: dict
+    report_citations: Annotated[List[dict], operator.add]
+    gate_report: dict
+
     # Output: Final markdown report
     final_report: str
-    
+
     # Tracking: Executed tool calls for semantic deduplication
     executed_tools: Annotated[List[dict], operator.add]
-

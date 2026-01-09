@@ -1,0 +1,20 @@
+{
+  "run_id": "test_hard_003",
+  "generated_at": "2026-01-06T12:00:00Z",
+  "facts": [
+    {
+      "event_id": "evt_001",
+      "title": "Real Event",
+      "topic": "tech",
+      "date": "2026-01-04",
+      "evidences": [
+        {
+          "url": "https://valid.example.com/article",
+          "evidence_quote": "Event occurred as documented.",
+          "credibility_tier": "reputable_media",
+          "retrieval_ts": "2026-01-06T10:00:00Z"
+        }
+      ]
+    }
+  ]
+}

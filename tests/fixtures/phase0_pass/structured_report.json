@@ -1,0 +1,46 @@
+{
+  "report_id": "rpt_pass_001",
+  "run_id": "test_pass_001",
+  "generated_at": "2026-01-06T12:05:00Z",
+  "sections": [
+    {
+      "section_id": "sec_summary",
+      "title": "Executive Summary",
+      "items": [
+        {
+          "item_id": 1,
+          "item_text": "On 2026-01-05, the company announced a new product launch.",
+          "role": "key_claim",
+          "event_ids": ["evt_001"],
+          "assertion_strength": "strong",
+          "dispute_status": "none",
+          "conflict_group_id": null
+        }
+      ]
+    },
+    {
+      "section_id": "sec_analysis",
+      "title": "Analysis",
+      "items": [
+        {
+          "item_id": 2,
+          "item_text": "Media coverage was generally positive.",
+          "role": "support",
+          "event_ids": ["evt_002"],
+          "assertion_strength": "neutral",
+          "dispute_status": "none",
+          "conflict_group_id": null
+        },
+        {
+          "item_id": 3,
+          "item_text": "Social media reactions were mixed, suggesting some uncertainty about timing.",
+          "role": "analysis",
+          "event_ids": ["evt_003"],
+          "assertion_strength": "hedged",
+          "dispute_status": "none",
+          "conflict_group_id": null
+        }
+      ]
+    }
+  ]
+}

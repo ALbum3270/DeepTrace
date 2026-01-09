@@ -1,0 +1,45 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "structured_report",
+  "type": "object",
+  "required": ["report_id", "run_id", "generated_at", "sections"],
+  "properties": {
+    "report_id": { "type": "string" },
+    "run_id": { "type": "string" },
+    "generated_at": { "type": "string" },
+    "generation_errors": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "sections": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["section_id", "title", "items"],
+        "properties": {
+          "section_id": { "type": "string" },
+          "title": { "type": "string" },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["item_id", "item_text", "role", "event_ids", "assertion_strength", "dispute_status"],
+              "properties": {
+                "item_id": { "type": "integer" },
+                "item_text": { "type": "string" },
+                "role": { "type": "string", "enum": ["key_claim", "support", "analysis"] },
+                "event_ids": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                },
+                "assertion_strength": { "type": "string", "enum": ["hedged", "neutral", "strong"] },
+                "dispute_status": { "type": "string", "enum": ["none", "disputed", "unresolved_conflict"] },
+                "conflict_group_id": { "type": ["string", "null"] }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

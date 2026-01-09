@@ -1,0 +1,20 @@
+{
+  "run_id": "r1",
+  "generated_at": "2025-01-01T00:00:00Z",
+  "facts": [
+    {
+      "event_id": "ev-001",
+      "title": "Launch",
+      "topic": "Sample topic",
+      "date": "2025-01-01",
+      "evidences": [
+        {
+          "url": "https://example.com/launch",
+          "evidence_quote": "Launch quote",
+          "credibility_tier": "official",
+          "retrieval_ts": "2025-01-01T00:00:00Z"
+        }
+      ]
+    }
+  ]
+}

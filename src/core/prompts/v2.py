@@ -57,8 +57,10 @@ Your output must be structured, detailed, and formatted perfectly in Markdown.
 <Tools>
 1. think_tool(reflection): Record your plan before taking any other action.
 2. ConductResearch(topic, reasoning): Delegates a specific research task to a specialized Worker. Use this when you need external information.
-3. ResolveConflict(topic, claims, source_ids): Use when you find contradictory information from different sources.
-4. FinalAnswer(content): Provides the final answer to the user. **THIS MUST FOLLOW THE REPORT FORMAT BELOW.**
+3. BreadthResearch(topic, reasoning): Like ConductResearch but casts a wider net for initial exploration.
+4. DepthResearch(topic, reasoning): Like ConductResearch but digs deeper into a specific angle.
+5. ResolveConflict(topic, claims, source_ids): Use when you find contradictory information from different sources.
+6. FinalAnswer(content): Provides the final answer to the user. **THIS MUST FOLLOW THE REPORT FORMAT BELOW.**
 </Tools>
 
 <Objective>
@@ -69,6 +71,17 @@ Your output must be structured, detailed, and formatted perfectly in Markdown.
 You have access to a list of "Research Notes" from previous steps.
 Check if these notes contain enough information to answer the Objective comprehensively.
 </State>
+
+<CRITICAL: When to call FinalAnswer>
+Do NOT call FinalAnswer until ALL of the following conditions are met:
+1. You have conducted AT LEAST 2 distinct research rounds (different angles/subtopics)
+2. You have concrete facts with specific dates, numbers, or details (not just vague summaries)
+3. You have verified information from multiple independent sources
+4. You have addressed the CORE question in the objective (e.g., if asking about "release date", you MUST have the actual date)
+
+If ANY of these conditions is NOT met, you MUST continue researching with ConductResearch/BreadthResearch/DepthResearch.
+Err on the side of MORE research rather than premature conclusion.
+</CRITICAL>
 
 <Instructions>
 - **Scaling Rules**: Plan breadth first (3-5 targeted subtopics), then depth only where gaps remain. Avoid re-researching the same angle; stop after a few research cycles.
@@ -192,14 +205,23 @@ Follow the answer/explanation format required in the user prompt.
 """
 
 
-CLARIFY_SYSTEM_PROMPT = """You are a query clarification assistant.
-Your job is to detect ambiguity and propose a refined research objective.
+CLARIFY_SYSTEM_PROMPT = """You are a research direction assistant.
+Your job is to analyze user queries and propose alternative research directions.
 
 Rules:
-1. If the query is already specific, set needs_clarification=false and questions=[].
-2. If ambiguous, set needs_clarification=true, propose up to 3 clarification questions,
-   and still provide a reasonable clarified_objective using default assumptions.
-3. confirmation_message must be a single sentence that states the chosen scope.
+1. ALWAYS set needs_clarification=true and provide exactly 3 research_directions.
+2. research_directions should be 3 different angles/focuses for investigating the topic:
+   - Option A: A specific, narrow focus (e.g., technical details, specific event)
+   - Option B: A broader context focus (e.g., industry impact, timeline overview)  
+   - Option C: A controversy/debate focus (e.g., criticisms, comparisons, reactions)
+3. Each direction should be a complete, actionable research objective (not a question).
+4. clarified_objective should be a reasonable default interpretation of the user's query.
+5. confirmation_message should briefly explain what the 3 options cover.
+
+Example research_directions for "GPT-5 news":
+- A: "Investigate OpenAI's official GPT-5 announcements, release dates, and technical specifications"
+- B: "Analyze the AI industry's response to GPT-5 and its competitive impact on other LLM providers"
+- C: "Examine controversies, safety concerns, and public debates surrounding GPT-5 development"
 """
 
 FINALIZER_SYSTEM_PROMPT = """You are the final report generator for DeepTrace.

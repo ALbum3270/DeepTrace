@@ -1,0 +1,34 @@
+{
+  "run_id": "test_hard_001",
+  "generated_at": "2026-01-06T12:00:00Z",
+  "facts": [
+    {
+      "event_id": "evt_001",
+      "title": "Controversial Statement A",
+      "topic": "politics",
+      "date": "2026-01-04",
+      "evidences": [
+        {
+          "url": "https://news-a.example.com/article",
+          "evidence_quote": "Source A claims X happened.",
+          "credibility_tier": "reputable_media",
+          "retrieval_ts": "2026-01-06T10:00:00Z"
+        }
+      ]
+    },
+    {
+      "event_id": "evt_002",
+      "title": "Controversial Statement B",
+      "topic": "politics",
+      "date": "2026-01-04",
+      "evidences": [
+        {
+          "url": "https://news-b.example.com/article",
+          "evidence_quote": "Source B disputes X and claims Y.",
+          "credibility_tier": "reputable_media",
+          "retrieval_ts": "2026-01-06T10:30:00Z"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "report_id": "rpt_warn_001",
+  "run_id": "test_warn_001",
+  "generated_at": "2026-01-06T12:05:00Z",
+  "sections": [
+    {
+      "section_id": "sec_summary",
+      "title": "Executive Summary",
+      "items": [
+        {
+          "item_id": 1,
+          "item_text": "On 2026-01-05, the company announced a 15% price increase effective March.",
+          "role": "support",
+          "event_ids": ["evt_001"],
+          "assertion_strength": "strong",
+          "dispute_status": "none",
+          "conflict_group_id": null
+        }
+      ]
+    }
+  ]
+}

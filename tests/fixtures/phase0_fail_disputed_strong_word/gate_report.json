@@ -1,0 +1,16 @@
+{
+  "summary": {
+    "hard": 1,
+    "soft": 0,
+    "warn": 0
+  },
+  "violations": [
+    {
+      "severity": "HARD",
+      "rule_id": "strong_word_in_disputed",
+      "item_id": 1,
+      "details": "strong confirmation wording used in disputed item"
+    }
+  ],
+  "facts_index_size": 2
+}

@@ -1,0 +1,16 @@
+{
+  "summary": {
+    "hard": 1,
+    "soft": 0,
+    "warn": 0
+  },
+  "violations": [
+    {
+      "severity": "HARD",
+      "rule_id": "disputed_must_be_hedged",
+      "item_id": 1,
+      "details": "disputed item is not hedged"
+    }
+  ],
+  "facts_index_size": 2
+}

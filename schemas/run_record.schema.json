@@ -1,0 +1,46 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "run_record",
+  "type": "object",
+  "required": ["run_id", "archived_at", "objective", "original_query", "artifacts", "enabled_policies_snapshot"],
+  "properties": {
+    "run_id": { "type": "string" },
+    "archived_at": { "type": "string" },
+    "objective": { "type": "string" },
+    "original_query": { "type": "string" },
+    "renderer_version": { "type": "string" },
+    "artifacts": {
+      "type": "object",
+      "required": [
+        "facts_index_path",
+        "structured_report_path",
+        "report_citations_path",
+        "gate_report_path",
+        "final_report_path"
+      ],
+      "properties": {
+        "facts_index_path": { "type": "string" },
+        "structured_report_path": { "type": "string" },
+        "report_citations_path": { "type": "string" },
+        "gate_report_path": { "type": "string" },
+        "final_report_path": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "enabled_policies_snapshot": {
+      "type": "object",
+      "required": ["phase", "renderer_version", "gate2_severity_config_path", "gate2_severity"],
+      "properties": {
+        "phase": { "type": "string" },
+        "renderer_version": { "type": "string" },
+        "gate2_severity_config_path": { "type": ["string", "null"] },
+        "gate2_severity": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

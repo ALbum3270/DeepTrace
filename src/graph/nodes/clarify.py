@@ -6,7 +6,18 @@ Checks the initial query and refines it when ambiguous.
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.runnables import RunnableConfig
-from langchain.chat_models import init_chat_model
+try:
+    from langchain.chat_models import init_chat_model  # type: ignore
+except ImportError:
+    from langchain_openai import ChatOpenAI  # type: ignore
+    def init_chat_model(model: str, temperature=0, model_provider=None, **kwargs):
+        from src.config.settings import settings
+        return ChatOpenAI(
+            model=model,
+            openai_api_key=settings.openai_api_key,
+            openai_api_base=settings.openai_base_url,
+            temperature=temperature,
+        )
 
 from src.config.settings import settings
 from src.graph.state_v2 import GlobalState
@@ -14,7 +25,6 @@ from src.core.prompts.v2 import CLARIFY_SYSTEM_PROMPT
 from src.core.models.v2_structures import ClarificationResult
 from src.core.utils.llm_safety import safe_ainvoke
 from src.core.utils.topic_filter import extract_tokens
-import sys
 
 
 async def _get_clarification_result(query: str, config: RunnableConfig) -> ClarificationResult:
@@ -45,49 +55,60 @@ async def _get_clarification_result(query: str, config: RunnableConfig) -> Clari
 
 async def interactive_clarify(query: str, config: RunnableConfig) -> tuple[str, list[str], list[str]]:
     """
-    Run clarification and prompt the user if ambiguity is detected.
+    Show research direction options to user. Default uses original query.
     Returns (clarified_objective, required_tokens, log_entries).
     """
+    import sys
+    
     if not query:
         return query, extract_tokens(query), []
 
     log_entries: list[str] = []
+    
     try:
         result = await _get_clarification_result(query, config)
-    except Exception:
-        return query, extract_tokens(query), ["Clarification skipped due to parse failure."]
+    except Exception as e:
+        log_entries.append(f"Clarification skipped: {e}")
+        return query, extract_tokens(query), log_entries
 
-    clarified_objective = result.clarified_objective or query
-    if result.needs_clarification:
-        if result.questions:
-            log_entries.append(
-                "Clarification requires user confirmation. Questions: "
-                + "; ".join(result.questions)
-            )
-            print("\n[Clarification Questions]")
-            for idx, q in enumerate(result.questions, 1):
-                print(f"{idx}. {q}")
-        else:
-            log_entries.append("Clarification requires user confirmation.")
-
-        if result.confirmation_message:
-            log_entries.append(result.confirmation_message)
-            print(f"\n[Clarification Hint] {result.confirmation_message}")
-
+    # Show research directions if available
+    if result.research_directions:
+        print("\n" + "="*60)
+        print(f"📝 您的查询: {query}")
+        print("="*60)
+        print("\n🔍 可选研究方向:")
+        for idx, direction in enumerate(result.research_directions[:3]):
+            label = chr(ord('A') + idx)  # A, B, C
+            print(f"   [{label}] {direction}")
+        print(f"\n   [Enter] 使用原始查询: {query}")
+        print("="*60)
+        
+        log_entries.append(f"Research directions offered: {'; '.join(result.research_directions[:3])}")
+        
+        # Get user choice
         user_input = ""
         if sys.stdin and sys.stdin.isatty():
-            user_input = input("请补充或确认研究范围（直接回车使用默认建议）: ").strip()
+            user_input = input("\n请选择 [A/B/C] 或直接回车: ").strip().upper()
+        
+        # Determine final objective
+        if user_input in ['A', 'B', 'C']:
+            idx = ord(user_input) - ord('A')
+            if idx < len(result.research_directions):
+                clarified_objective = result.research_directions[idx]
+                log_entries.append(f"User selected option {user_input}")
+            else:
+                clarified_objective = query
         else:
-            log_entries.append("Non-interactive session; using default clarified objective.")
-        if user_input:
-            clarified_objective = user_input
-        else:
-            clarified_objective = result.clarified_objective or query
+            # Default: use original query
+            clarified_objective = query
+            log_entries.append("User chose original query (default)")
     else:
-        if result.confirmation_message:
-            log_entries.append(result.confirmation_message)
+        clarified_objective = query
 
     required_tokens = extract_tokens(clarified_objective)
+    if not required_tokens:
+        required_tokens = extract_tokens(query)
+    
     return clarified_objective, required_tokens, log_entries
 
 
@@ -117,11 +138,15 @@ async def clarify_node(state: GlobalState, config: RunnableConfig):
     Refine the user query and emit a confirmation message into the log.
     """
     if state.get("clarification_done"):
-        return {}
+        # Already clarified (e.g., by interactive_clarify); preserve existing tokens
+        return {
+            "clarification_done": True,
+            "required_tokens": state.get("required_tokens") or [],
+        }
 
     query = state.get("original_query") or state.get("objective") or ""
     if not query:
-        return {}
+        return {"clarification_done": True}
 
     try:
         configurable = config.get("configurable", {})

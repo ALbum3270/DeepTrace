@@ -3,21 +3,35 @@ Final report generator for DeepTrace V2.
 """
 
 import re
+import uuid
 from datetime import datetime
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, List, Tuple, Optional
+import os
 
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
-from langchain.chat_models import init_chat_model
+try:
+    from langchain.chat_models import init_chat_model  # type: ignore
+except ImportError:
+    from langchain_openai import ChatOpenAI  # type: ignore
+    def init_chat_model(model: str, temperature=0, model_provider=None, **kwargs):
+        return ChatOpenAI(
+            model=model,
+            openai_api_key=settings.openai_api_key,
+            openai_api_base=settings.openai_base_url,
+            temperature=temperature,
+        )
 
 from src.config.settings import settings
-from src.core.prompts.v2 import FINALIZER_SYSTEM_PROMPT
 from src.core.utils.llm_safety import safe_ainvoke
 from src.graph.state_v2 import GlobalState
 from src.core.models.credibility import evaluate_credibility
 from src.core.utils.topic_filter import matches_tokens, extract_tokens
 
 import json
+import yaml
+
+RENDERER_VERSION = "phase0_markdown_renderer_v1"
 
 def _extract_urls(notes: List[str]) -> List[str]:
     urls = []
@@ -231,23 +245,13 @@ def _latest_timeline_date(timeline: List[Any]):
 def _clean_timeline_entries(raw: List[Any]) -> List[dict]:
     """
     Deduplicate and filter timeline entries.
-    - Keep only entries with credibility >= reputable when a source URL exists.
-    - Mark missing-source entries as disputed to avoid overstating certainty.
+    - Preserve credibility notes without forcing [Disputed] prefixes.
+    - Deduplicate by (date, normalized title); merge descriptions when conflicts arise.
     """
     def _normalize_title(raw_title: str) -> str:
         normalized = re.sub(r"\s+", " ", raw_title.lower()).strip()
         normalized = re.sub(r"[^a-z0-9\s]+", "", normalized)
         return normalized
-
-    def _mark_disputed(raw_title: str) -> str:
-        return raw_title if raw_title.lower().startswith("[disputed]") else f"[Disputed] {raw_title}"
-
-    def _strip_disputed(raw_title: str) -> str:
-        lowered = raw_title.lower()
-        if lowered.startswith("[disputed]"):
-            stripped = raw_title[len("[Disputed]") :].strip()
-            return stripped or raw_title
-        return raw_title
 
     from typing import Optional
 
@@ -269,15 +273,18 @@ def _clean_timeline_entries(raw: List[Any]) -> List[dict]:
         title = base_title
         date = item.get("date") or item.get("time") or item.get("timestamp") or "Unknown"
         source = item.get("source") or item.get("source_url") or item.get("url")
+        credibility_tier = item.get("credibility_tier")
 
+        desc = item.get("description", "")
         if source:
             cred = evaluate_credibility(source)
-            if cred.score < 70:
-                # Drop low-credibility timeline points to avoid polluting the report.
-                continue
+            credibility_tier = credibility_tier or cred.source_type
+            if cred.score < 70 and "low-credibility source" not in (desc or "").lower():
+                desc = (desc or "").strip()
+                desc = f"{desc} (Low-credibility source; treat as unverified.)".strip()
         else:
-            # Without a source, keep but mark as disputed.
-            title = _mark_disputed(title)
+            # Without a source, mark as unknown credibility in metadata, not title prefix.
+            credibility_tier = credibility_tier or "unknown"
 
         if not date:
             date = "Unknown"
@@ -295,19 +302,21 @@ def _clean_timeline_entries(raw: List[Any]) -> List[dict]:
                 conflict = True
 
             if conflict:
-                existing["title"] = _mark_disputed(existing.get("title", "Untitled"))
                 existing["description"] = _append_conflict_note(existing_desc, existing_source, source)
             elif not existing_source and source:
                 existing["source"] = source
-                existing["title"] = _strip_disputed(existing.get("title", "Untitled"))
+            # Keep the stronger credibility tier if available
+            if credibility_tier and not existing.get("credibility_tier"):
+                existing["credibility_tier"] = credibility_tier
             continue
 
         cleaned.append(
             {
                 "date": date,
                 "title": title,
-                "description": item.get("description", ""),
+                "description": desc,
                 "source": source,
+                "credibility_tier": credibility_tier,
             }
         )
         index_by_key[key] = len(cleaned) - 1
@@ -444,19 +453,24 @@ def _sanitize_llm_output(content: str, has_official: bool, has_verified: bool) -
 
 async def finalizer_node(state: GlobalState, config: RunnableConfig) -> Dict[str, Any]:
     """
-    Generate the final report using the V2 template.
+    Phase 0 finalizer: structured -> deterministic render + Gate2 audit.
     """
-    objective = state.get("objective", "Unknown Objective")
+    objective = state.get("objective", state.get("original_query", "Unknown Objective"))
     notes = state.get("research_notes", [])
     timeline = state.get("timeline", [])
-    logs = state.get("investigation_log", [])
-    messages = state.get("messages", [])
-    conflict_candidates = state.get("conflict_candidates", []) or []
-    current_date_obj = datetime.utcnow().date()
-    current_date = current_date_obj.isoformat()
+    conflicts = state.get("conflicts", [])
+    run_id = state.get("run_id") or config.get("configurable", {}).get("thread_id") or str(uuid.uuid4())
+    current_ts = datetime.utcnow().isoformat()
 
     configurable = config.get("configurable", {})
     model_name = configurable.get("finalizer_model", settings.model_name or "gpt-4o")
+    severity_map = _load_gate2_severity()
+    enabled_policies_snapshot = {
+        "phase": "phase0",
+        "renderer_version": RENDERER_VERSION,
+        "gate2_severity_config_path": getattr(settings, "gate2_severity_config", None),
+        "gate2_severity": severity_map,
+    }
 
     if settings.openai_base_url and "openai.com" not in settings.openai_base_url:
         from langchain_openai import ChatOpenAI
@@ -469,189 +483,462 @@ async def finalizer_node(state: GlobalState, config: RunnableConfig) -> Dict[str
     else:
         llm = init_chat_model(model=model_name, temperature=0)
 
-    urls = _extract_urls(notes)
-    topic_tokens = set(state.get("required_tokens") or _topic_tokens(objective))
-    # Filter URLs by topic tokens
-    urls = [u for u in urls if matches_tokens(u, topic_tokens)]
-    if not topic_tokens:
-        # strict mode: if no tokens, treat as unverified/no sources
-        urls = []
-    buckets, stats = _summarize_sources(urls)
-    buckets = _filter_official_buckets(buckets)
+    cleaned_timeline = _clean_timeline_entries(timeline)
+    facts_index = _build_facts_index(cleaned_timeline, objective, run_id)
+    allowed_event_ids = [f.get("event_id") for f in facts_index.get("facts", []) if f.get("event_id")]
 
-    # LLM verify suspected official sources
-    snippets = _build_snippet_map(urls, notes)
-    official_verified = []
-    downgraded = []
-    verifier_model = configurable.get("verifier_model", "gpt-4o-mini")
-    for url in list(buckets.get("official", [])):
-        verdict = await _llm_verify_official(url, objective, snippets.get(url, ""), verifier_model)
-        if (
-            verdict.get("classification") == "Official Announcement"
-            and verdict.get("is_company_voice")
-            and verdict.get("is_on_topic")
-            and verdict.get("event_status") == "Past/Confirmed"
-        ):
-            official_verified.append(url)
-        else:
-            downgraded.append(url)
+    # If we have no grounded facts at all, short-circuit with a guarded minimal report.
+    if not facts_index.get("facts"):
+        structured_report = {
+            "report_id": run_id,
+            "run_id": run_id,
+            "generated_at": current_ts,
+            "sections": [
+                {
+                    "section_id": "executive_summary",
+                    "title": "Executive Summary",
+                    "items": [
+                        {
+                            "item_id": 1,
+                            "item_text": f"No grounded evidence collected for: {objective}. Report cannot provide verified claims.",
+                            "role": "analysis",
+                            "event_ids": [],
+                            "assertion_strength": "hedged",
+                            "dispute_status": "none",
+                            "conflict_group_id": None,
+                        }
+                    ],
+                }
+            ],
+        }
+        report_citations = _export_sidecar(structured_report)
+        gate_report = {
+            "summary": {"hard": 1, "soft": 0, "warn": 0},
+            "violations": [
+                {
+                    "severity": "HARD",
+                    "rule_id": "no_evidence",
+                    "item_id": 1,
+                    "details": "facts_index is empty; no grounded evidence available.",
+                }
+            ],
+            "facts_index_size": 0,
+        }
+        final_report = _render_markdown_from_structured(structured_report, gate_report, objective, current_ts)
+        return {
+            "run_id": run_id,
+            "facts_index": facts_index,
+            "structured_report": structured_report,
+            "report_citations": report_citations,
+            "gate_report": gate_report,
+            "final_report": final_report,
+            "enabled_policies_snapshot": enabled_policies_snapshot,
+        }
 
-    buckets["official"] = official_verified
-    if downgraded:
-        buckets.setdefault("reputable", []).extend(downgraded)
+    structured_report, gen_errors = await _generate_structured_report(
+        llm=llm,
+        model_name=model_name,
+        run_id=run_id,
+        objective=objective,
+        cleaned_timeline=cleaned_timeline,
+        conflicts=conflicts,
+        allowed_event_ids=allowed_event_ids,
+        notes=notes,
+        current_ts=current_ts,
+    )
+    if gen_errors:
+        structured_report.setdefault("generation_errors", []).extend(gen_errors)
 
-    stats = {
-        "total": len(urls),
-        "verified": len(buckets["official"]),
-        "reputable": len(buckets["reputable"]),
-        "rumor": len(buckets["low"]),
+    report_citations = _export_sidecar(structured_report)
+    _enforce_dispute_rules(structured_report)
+    gate_report = _gate2_audit(structured_report, facts_index, severity_map=severity_map)
+    final_report = _render_markdown_from_structured(structured_report, gate_report, objective, current_ts)
+
+    return {
+        "run_id": run_id,
+        "facts_index": facts_index,
+        "structured_report": structured_report,
+        "report_citations": report_citations,
+        "gate_report": gate_report,
+        "final_report": final_report,
+        "enabled_policies_snapshot": enabled_policies_snapshot,
     }
-    evidence_count = stats["total"]
-    draft = _get_final_answer_draft(messages)
-    conflicts = state.get("conflicts", [])
-    cleaned_timeline = _clean_timeline_entries(
-        [t for t in timeline if matches_tokens(t.get("title", "") + " " + t.get("description", ""), topic_tokens)]
-    )
-    timeline_ascii = _render_ascii_timeline(cleaned_timeline)
-    fact_table = _build_fact_table(cleaned_timeline, conflicts, buckets["official"])
-    has_verified = bool(fact_table["verified"])
-    has_official = bool(buckets["official"])
 
-    data_warnings = []
-    if not cleaned_timeline:
-        data_warnings.append("No timeline entries extracted.")
-    if not urls:
-        data_warnings.append("No credible source URLs detected.")
-    if conflict_candidates and not conflicts:
-        data_warnings.append(f"{len(conflict_candidates)} unresolved conflict candidates remain.")
-    recency_threshold = configurable.get("recency_threshold_days", 30)
-    latest_date = _latest_timeline_date(cleaned_timeline)
-    if latest_date:
-        lag_days = (current_date_obj - latest_date).days
-        if lag_days > recency_threshold:
-            data_warnings.append(
-                f"Latest timeline evidence is {latest_date.isoformat()} ({lag_days} days behind). Report may be outdated."
+
+def _build_facts_index(timeline: List[dict], objective: str, run_id: str) -> dict:
+    def _normalize_key(title: str) -> str:
+        normalized = re.sub(r"\s+", " ", (title or "").lower()).strip()
+        normalized = re.sub(r"[^a-z0-9\s]+", "", normalized)
+        return normalized or "untitled"
+
+    facts_by_key: Dict[tuple, dict] = {}
+    counter = 1
+
+    for item in timeline or []:
+        if not isinstance(item, dict):
+            continue
+        url = item.get("source") or item.get("source_url") or item.get("url")
+        if not url:
+            # Without a concrete evidence URL we cannot establish an event anchor
+            continue
+
+        title = item.get("title") or item.get("description") or "Untitled"
+        date = item.get("date") or item.get("time") or item.get("timestamp") or ""
+        key = (date, _normalize_key(title))
+
+        if key not in facts_by_key:
+            event_id = item.get("event_id") or f"ev-{counter:04d}"
+            counter += 1
+            facts_by_key[key] = {
+                "event_id": event_id,
+                "title": title,
+                "topic": objective,
+                "date": date,
+                "evidences": [],
+            }
+        fact_entry = facts_by_key[key]
+        cred = evaluate_credibility(url)
+        fact_entry["evidences"].append(
+            {
+                "url": url,
+                "evidence_quote": (item.get("description") or item.get("title") or "")[:280],
+                "credibility_tier": cred.source_type or "unknown",
+                "retrieval_ts": datetime.utcnow().isoformat(),
+            }
+        )
+
+    facts = list(facts_by_key.values())
+    return {
+        "run_id": run_id,
+        "generated_at": datetime.utcnow().isoformat(),
+        "facts": facts,
+    }
+
+
+def _coerce_json(text: str) -> Optional[dict]:
+    try:
+        return json.loads(text)
+    except Exception:
+        pass
+    # Try to extract the first JSON object substring
+    if "{" in text and "}" in text:
+        start = text.find("{")
+        end = text.rfind("}")
+        if start >= 0 and end > start:
+            snippet = text[start : end + 1]
+            try:
+                return json.loads(snippet)
+            except Exception:
+                return None
+    return None
+
+
+async def _generate_structured_report(
+    llm,
+    model_name: str,
+    run_id: str,
+    objective: str,
+    cleaned_timeline: List[dict],
+    conflicts: List[dict],
+    allowed_event_ids: List[str],
+    notes: List[str],
+    current_ts: str,
+) -> tuple[dict, List[str]]:
+    """
+    Ask LLM for structured JSON only; retry a couple times, then degrade deterministically.
+    """
+    errors: List[str] = []
+    timeline_excerpt = cleaned_timeline[:12]
+    conflict_excerpt = conflicts[:6]
+    notes_blob = "\n".join(notes)[:3000]
+    allowed_ids = allowed_event_ids or []
+
+    def _messages(extra_hint: str = "") -> List[Any]:
+        schema_hint = json.dumps(
+            {
+                "report_id": run_id,
+                "run_id": run_id,
+                "generated_at": current_ts,
+                "sections": [
+                    {
+                        "section_id": "executive_summary",
+                        "title": "Executive Summary",
+                        "items": [
+                            {
+                                "item_id": 1,
+                                "item_text": "Short summary sentence.",
+                                "role": "analysis",
+                                "event_ids": [],
+                                "assertion_strength": "neutral",
+                                "dispute_status": "none",
+                                "conflict_group_id": None,
+                            }
+                        ],
+                    }
+                ],
+            },
+            ensure_ascii=True,
+        )
+        user = (
+            f"Objective: {objective}\n"
+            f"Today: {current_ts}\n"
+            f"Allowed event_ids (must not invent new ones): {allowed_ids}\n"
+            "If allowed_event_ids is empty, set event_ids: [] and avoid claiming verification.\n"
+            "Use ONLY provided notes/timeline/conflicts. Do NOT add new facts or URLs.\n"
+            "Sections to include: Executive Summary (2-4 items), Key Findings (2-6 items), Timeline Highlights (<=10 items), Conflicts (if any conflicts provided).\n"
+            "Each item must include: item_id (int), item_text (<=240 chars), role (key_claim|support|analysis), "
+            "event_ids (subset of allowed_event_ids), assertion_strength (hedged|neutral|strong), "
+            "dispute_status (none|disputed|unresolved_conflict), conflict_group_id (nullable).\n"
+            "Only set dispute_status != none when you have either >=2 event_ids OR a conflict_group_id. "
+            "If you cannot meet that, set dispute_status=none and prefer role=analysis with hedged tone.\n"
+            "For role=key_claim, event_ids must be NON-empty. If you cannot cite an event_id, use role=analysis and event_ids=[].\n"
+            "When dispute_status != none, set assertion_strength=hedged.\n"
+            f"Timeline (truncated): {timeline_excerpt}\n"
+            f"Conflicts (truncated): {conflict_excerpt}\n"
+            f"Research Notes (truncated): {notes_blob}\n"
+            "Return VALID JSON ONLY that conforms to the schema hint below.\n"
+            f"Schema hint: {schema_hint}\n"
+            f"{extra_hint}"
+        )
+        return [
+            SystemMessage(
+                content=(
+                    "You are a structured reporting engine. Output only JSON. "
+                    "Never hallucinate event_ids; only use the allowed list. "
+                    "Keep text concise and grounded strictly in provided evidence."
+                )
+            ),
+            HumanMessage(content=user),
+        ]
+
+    for attempt in range(3):
+        resp = await safe_ainvoke(llm, _messages("" if attempt == 0 else "Previous output was invalid. Return JSON only."), model_name=model_name)
+        parsed = _coerce_json(resp.content or "")
+        if isinstance(parsed, dict) and parsed.get("sections"):
+            parsed.setdefault("report_id", run_id)
+            parsed.setdefault("run_id", run_id)
+            parsed.setdefault("generated_at", current_ts)
+            return parsed, errors
+        errors.append(f"attempt {attempt+1} parse failed")
+
+    fallback = {
+        "report_id": run_id,
+        "run_id": run_id,
+        "generated_at": current_ts,
+        "sections": [
+            {
+                "section_id": "executive_summary",
+                "title": "Executive Summary",
+                "items": [
+                    {
+                        "item_id": 1,
+                        "item_text": f"No structured report generated for {objective}.",
+                        "role": "analysis",
+                        "event_ids": [],
+                        "assertion_strength": "hedged",
+                        "dispute_status": "disputed" if allowed_ids else "none",
+                        "conflict_group_id": None,
+                    }
+                ],
+            }
+        ],
+        "generation_errors": errors,
+    }
+    return fallback, errors
+
+
+def _enforce_dispute_rules(structured_report: dict):
+    """
+    Post-process the structured report to ensure disputed items obey Phase 0 rules.
+    If an item is disputed but lacks multi-source support (>=2 event_ids or conflict_group_id),
+    downgrade it to analysis/hedged with dispute_status=none.
+    """
+    for section in structured_report.get("sections", []) or []:
+        for item in section.get("items", []) or []:
+            if not isinstance(item, dict):
+                continue
+            dispute_status = (item.get("dispute_status") or "none").lower()
+            event_ids = item.get("event_ids") or []
+            has_conflict_group = bool(item.get("conflict_group_id"))
+            if dispute_status != "none" and len(event_ids) < 2 and not has_conflict_group:
+                item["dispute_status"] = "none"
+                item["role"] = "analysis"
+                item["assertion_strength"] = "hedged"
+                if not event_ids:
+                    item["event_ids"] = []
+
+
+def _export_sidecar(structured_report: dict) -> List[dict]:
+    citations: List[dict] = []
+    for section in structured_report.get("sections", []) or []:
+        for item in section.get("items", []) or []:
+            if not isinstance(item, dict):
+                continue
+            citations.append(
+                {
+                    "section_id": section.get("section_id"),
+                    "item_id": item.get("item_id"),
+                    "item_text": item.get("item_text"),
+                    "role": item.get("role"),
+                    "event_ids": item.get("event_ids") or [],
+                    "assertion_strength": item.get("assertion_strength"),
+                    "dispute_status": item.get("dispute_status"),
+                    "conflict_group_id": item.get("conflict_group_id"),
+                }
             )
-    data_warning_block = "\n".join([f"- {w}" for w in data_warnings]) if data_warnings else "None"
+    return citations
 
-    insufficient_structured = not urls and not cleaned_timeline and not conflicts
 
-    # If there is no evidence, return a guarded minimal report to avoid hallucination.
-    if not notes:
-        minimal_report = (
-            f"# DeepTrace Report: {objective}\n\n"
-            f"> **Generated**: {current_date}\n"
-            f"> **Evidence Stats**: 0 Sources (Verified: Unknown, Reputable: Unknown, Rumors: Unknown)\n"
-            f"> **Confidence Score**: Unknown\n"
-            f"> **Time Anchor**: Unknown\n\n"
-            "---\n\n"
-            "Insufficient evidence collected. No research notes are available to generate a grounded report.\n\n"
-            f"Data limitations:\n{data_warning_block}"
-        )
-        return {"final_report": minimal_report}
-    if insufficient_structured:
-        minimal_report = (
-            f"# DeepTrace Report: {objective}\n\n"
-            f"> **Generated**: {current_date}\n"
-            f"> **Evidence Stats**: {evidence_count} Sources (Verified: {stats['verified']}, "
-            f"Reputable: {stats['reputable']}, Rumors: {stats['rumor']})\n"
-            f"> **Confidence Score**: Low\n"
-            f"> **Time Anchor**: Unknown\n\n"
-            "---\n\n"
-            "Insufficient structured evidence to generate a grounded report.\n\n"
-            f"Data limitations:\n{data_warning_block}"
-        )
-        return {"final_report": minimal_report}
+def _contains_strong_word(text: str) -> bool:
+    strong_terms = ["confirmed", "official", "officially", "已证实", "确定", "铁证", "毫无疑问"]
+    # If the sentence is explicitly hedged/attributed, do not treat it as a strong assertion.
+    hedge_terms = ["claim", "claims", "claimed", "rumor", "rumors", "rumoured", "rumored", "reportedly", "alleged", "according to", "sources", "multiple sources", "据称", "传言", "传闻", "据报道", "据报"]
+    lowered = (text or "").lower()
+    if any(h in lowered for h in hedge_terms):
+        return False
+    return any(term in lowered for term in strong_terms)
 
-    context = (
-        f"Objective: {objective}\n\n"
-        f"Today: {current_date}\n"
-        f"Evidence Count (estimated): {evidence_count}\n"
-        f"Evidence Verified Count: {stats['verified']}\n"
-        f"Evidence Reputable Count: {stats['reputable']}\n"
-        f"Evidence Rumor Count: {stats['rumor']}\n"
-        f"Official Sources (only these may support 'Verified'): {buckets['official']}\n"
-        f"Reputable Sources (can support, but note they are not official): {buckets['reputable']}\n"
-        f"Low Credibility Sources (cannot support verification): {buckets['low']}\n"
-        f"Source Bucket Summary: official={len(buckets['official'])}, reputable={len(buckets['reputable'])}, low={len(buckets['low'])}\n"
-        f"Research Notes (verbatim, use only these):\n{chr(10).join(notes)}\n\n"
-        f"Timeline Entries (use only these, do not invent):\n{cleaned_timeline if cleaned_timeline else 'None'}\n\n"
-        f"Timeline (ASCII, include as-is):\n{timeline_ascii}\n\n"
-        f"Conflicts (structured, use only these):\n{conflicts if conflicts else 'None'}\n\n"
-        f"Fact Table (must only use these facts):\n"
-        f"- Verified Facts: {fact_table['verified'] if fact_table['verified'] else 'None'}\n"
-        f"- Unverified/Disputed Facts: {fact_table['unverified'] if fact_table['unverified'] else 'None'}\n\n"
-        f"Data Quality Warnings:\n{data_warning_block}\n\n"
-        f"Conflict/Process Log:\n{chr(10).join(logs) if logs else 'None'}\n\n"
-        f"Supervisor Draft (if any, use only as-is):\n{draft if draft else 'None'}"
-    )
 
-    if buckets["official"]:
-        time_anchor = "Relies on confirmed official announcements"
-    elif buckets["reputable"]:
-        time_anchor = "No confirmed official announcements; uses reputable sources only (provisional)"
-    else:
-        time_anchor = "No official/reputable sources; findings are unverified"
-
-    header = (
-        f"# DeepTrace Report: {objective}\n\n"
-        f"> **Generated**: {current_date}\n"
-        f"> **Evidence Stats**: {evidence_count} Sources (Verified: {stats['verified']}, Reputable: {stats['reputable']}, Rumors: {stats['rumor']})\n"
-        f"> **Confidence Score**: Unknown\n"
-        f"> **Time Anchor**: {time_anchor}\n\n"
-        "---\n\n"
-    )
-
-    system_msg = FINALIZER_SYSTEM_PROMPT.format(research_topic=objective)
-    user_msg = (
-        "Produce ONLY the sections after the header (starting from '## Executive Summary'). "
-        "Do NOT rewrite the header; it will be prepended. "
-        "Use ONLY the provided notes/timeline/logs/conflicts. Do NOT add new sources, URLs, dates, or claims. "
-        "If information is missing, write 'Unknown'. Keep ASCII-only for the timeline. "
-        "Evidence Stats and Generated date are fixed in the header; do not change them. "
-        "Do NOT add a Timeline Visualization or References section; they will be injected automatically. "
-        "Verification rule: Only official announcement URLs (dated press/blog/release pages) may support 'Verified' statements. "
-        "If there are zero such official sources, all findings are provisional; avoid 'official/confirmed' wording and treat conclusions as Unverified/Disputed even if reputable sources exist. "
-        "Low-credibility sources cannot justify verification; mark such findings as Unverified/Disputed. "
-        "In Key Findings, clearly separate Verified (only use facts listed under Verified Facts) vs Unverified/Disputed (only use the provided Unverified/Disputed Facts). "
-        "If there are zero Verified Facts, label the section as 'Key Findings (Unverified/Disputed)' and do NOT include a Verified subsection. "
-        "You MUST only restate facts from the Fact Table; do NOT add new facts, dates, or sources. "
-        "Do NOT duplicate the ASCII timeline block.\n\n"
-        f"{context}"
-    )
-    messages = [
-        SystemMessage(content=system_msg),
-        HumanMessage(content=user_msg),
+def _must_be_key_claim(text: str) -> bool:
+    if not text:
+        return False
+    patterns = [
+        r"\b20\d{2}[-/]\d{1,2}",  # date-like
+        r"\b\d{4}-\d{2}-\d{2}\b",
+        r"\b\d+%",
+        r"\b(vs\.|versus|caused|led to|resulted in|导致|因为|所以)\b",
     ]
+    return any(re.search(p, text, flags=re.IGNORECASE) for p in patterns)
 
-    response = await safe_ainvoke(llm, messages, model_name=model_name)
 
-    references_section = ""
-    if urls:
-        references_lines = []
-        ref_idx = 1
-        if buckets["official"]:
-            references_lines.append("### Official")
-            for url in buckets["official"]:
-                references_lines.append(f"[{ref_idx}] {url}")
-                ref_idx += 1
-        if buckets["reputable"]:
-            references_lines.append("### Reputable")
-            for url in buckets["reputable"]:
-                references_lines.append(f"[{ref_idx}] {url}")
-                ref_idx += 1
-        if buckets["low"]:
-            references_lines.append("### Low Credibility")
-            for url in buckets["low"]:
-                references_lines.append(f"[{ref_idx}] {url}")
-                ref_idx += 1
-        references_section = "\n\n## References\n" + "\n".join(references_lines)
+def _gate2_audit(structured_report: dict, facts_index: dict, *, severity_map: Optional[dict] = None) -> dict:
+    severity_map = severity_map or _load_gate2_severity()
+    allowed = {f.get("event_id") for f in facts_index.get("facts", []) if f.get("event_id")}
+    violations = []
+    summary = {"hard": 0, "soft": 0, "warn": 0}
 
-    # Insert ASCII timeline directly after header to avoid LLM hallucination
-    timeline_block = "\n## Timeline Visualization (ASCII)\n```plaintext\n" + timeline_ascii + "\n```\n\n"
+    for section in structured_report.get("sections", []) or []:
+        for item in section.get("items", []) or []:
+            if not isinstance(item, dict):
+                continue
+            item_text = item.get("item_text", "")
+            event_ids = item.get("event_ids") or []
+            dispute_status = (item.get("dispute_status") or "none").lower()
+            assertion_strength = (item.get("assertion_strength") or "").lower()
+            role = (item.get("role") or "").lower()
 
-    sanitized_content = _sanitize_llm_output(
-        response.content or "", has_official=has_official, has_verified=has_verified
-    )
-    final_report = header + timeline_block + sanitized_content + references_section
-    return {"final_report": final_report}
+            # Severity lookup helper
+            def add_violation(rule_id: str, default: str, details: str):
+                severity = severity_map.get(rule_id, default).upper()
+                if severity == "DISABLE":
+                    return
+                summary_key = "warn" if severity == "WARN" else ("soft" if severity == "SOFT" else "hard")
+                summary[summary_key] += 1
+                violations.append(
+                    {
+                        "severity": severity,
+                        "rule_id": rule_id,
+                        "item_id": item.get("item_id"),
+                        "details": details,
+                    }
+                )
+
+            # event_id not in allowed list
+            invalid_events = [eid for eid in event_ids if eid not in allowed]
+            if invalid_events:
+                add_violation("event_id_not_in_facts_index", "HARD", f"event_ids not in facts_index: {invalid_events}")
+
+            # Key claims must cite at least one event_id (Phase 0 traceability)
+            if role == "key_claim" and not event_ids:
+                add_violation(
+                    "key_claim_missing_event_ids",
+                    "HARD",
+                    "key_claim item must cite at least one event_id",
+                )
+
+            # HARD: disputed must be hedged and have multi-source support
+            if dispute_status != "none":
+                if assertion_strength != "hedged":
+                    add_violation("disputed_must_be_hedged", "HARD", "disputed item is not hedged")
+                if len(event_ids) < 2 and not item.get("conflict_group_id"):
+                    add_violation(
+                        "disputed_needs_multiple_events",
+                        "HARD",
+                        "disputed item requires >=2 event_ids or conflict_group_id",
+                    )
+                if _contains_strong_word(item_text):
+                    add_violation(
+                        "strong_word_in_disputed",
+                        "HARD",
+                        "strong confirmation wording used in disputed item",
+                    )
+
+            # WARN: likely key claim but role not key_claim
+            if _must_be_key_claim(item_text) and role != "key_claim":
+                add_violation("must_be_key_claim", "WARN", "item looks like a key claim but role is not key_claim")
+
+    gate_report = {
+        "summary": summary,
+        "violations": violations,
+        "facts_index_size": len(allowed),
+    }
+    return gate_report
+
+
+def _load_gate2_severity() -> dict:
+    """
+    Load severity config from YAML; fallback to built-in defaults if missing.
+    """
+    default = {
+        "event_id_not_in_facts_index": "HARD",
+        "key_claim_missing_event_ids": "HARD",
+        "disputed_must_be_hedged": "HARD",
+        "disputed_needs_multiple_events": "HARD",
+        "strong_word_in_disputed": "HARD",
+        "must_be_key_claim": "WARN",
+    }
+    path = getattr(settings, "gate2_severity_config", None)
+    if not path:
+        return default
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+            merged = default.copy()
+            merged.update({k: str(v).upper() for k, v in data.items() if isinstance(k, str)})
+            return merged
+    except Exception:
+        return default
+
+
+def _render_markdown_from_structured(structured_report: dict, gate_report: dict, objective: str, current_ts: str) -> str:
+    lines = [
+        f"# DeepTrace Report: {objective}",
+        f"> Generated: {current_ts}",
+        f"> Gate2 Summary: HARD={gate_report.get('summary', {}).get('hard', 0)}, WARN={gate_report.get('summary', {}).get('warn', 0)}",
+        "",
+    ]
+    for section in structured_report.get("sections", []) or []:
+        lines.append(f"## {section.get('title') or section.get('section_id') or 'Section'}")
+        for item in section.get("items", []) or []:
+            if not isinstance(item, dict):
+                continue
+            evs = item.get("event_ids") or []
+            ev_str = ", ".join(evs) if evs else "none"
+            lines.append(
+                f"- ({item.get('role')}/{item.get('assertion_strength')}/dispute={item.get('dispute_status')}) "
+                f"[events: {ev_str}] {item.get('item_text')}"
+            )
+        lines.append("")
+
+    lines.append("## Gate2 Audit")
+    if gate_report.get("violations"):
+        for v in gate_report["violations"]:
+            lines.append(f"- [{v.get('severity')}] {v.get('rule_id')}: item {v.get('item_id')} -> {v.get('details')}")
+    else:
+        lines.append("- No violations detected.")
+    if structured_report.get("generation_errors"):
+        lines.append("")
+        lines.append("## Generation Errors")
+        for err in structured_report.get("generation_errors", []):
+            lines.append(f"- {err}")
+    return "\n".join(lines).strip() + "\n"

@@ -199,6 +199,23 @@ class CorroborationLevel(Enum):
     SEMANTIC_DRIFT = auto()        # Divergent (New capabilities)
     UNRELATED = auto()
 
+
+# Backward-compat shim for caller expectations (used by supervisor.py)
+def compute_semantic_similarity(text_a: str, text_b: str) -> float:
+    """
+    Lightweight placeholder similarity scorer to maintain compatibility
+    when the full embedding-based scorer is absent. Returns 0.0–1.0.
+    """
+    if not text_a or not text_b:
+        return 0.0
+    a = set(text_a.lower().split())
+    b = set(text_b.lower().split())
+    if not a or not b:
+        return 0.0
+    overlap = a & b
+    union = a | b
+    return len(overlap) / len(union)
+
 class CrossVerifier:
     """Synthesizes rumors against established facts."""
     

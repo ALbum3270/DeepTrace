@@ -19,6 +19,9 @@ test_output.txt
 data/runs/*
 !data/runs/.gitkeep
 
+# External tools (auxiliary dependencies)
+_external_tools/
+
 # System
 .DS_Store
 Thumbs.db

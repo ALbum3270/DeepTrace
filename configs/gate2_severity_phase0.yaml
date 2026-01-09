@@ -1,0 +1,6 @@
+event_id_not_in_facts_index: HARD
+key_claim_missing_event_ids: HARD
+disputed_must_be_hedged: HARD
+disputed_needs_multiple_events: HARD
+strong_word_in_disputed: HARD
+must_be_key_claim: DISABLE

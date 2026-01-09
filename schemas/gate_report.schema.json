@@ -1,0 +1,31 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "gate_report",
+  "type": "object",
+  "required": ["summary", "violations", "facts_index_size"],
+  "properties": {
+    "summary": {
+      "type": "object",
+      "required": ["hard", "soft", "warn"],
+      "properties": {
+        "hard": { "type": "integer" },
+        "soft": { "type": "integer" },
+        "warn": { "type": "integer" }
+      }
+    },
+    "violations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["severity", "rule_id", "details"],
+        "properties": {
+          "severity": { "type": "string", "enum": ["HARD", "SOFT", "WARN"] },
+          "rule_id": { "type": "string" },
+          "item_id": { "type": ["integer", "null"] },
+          "details": { "type": "string" }
+        }
+      }
+    },
+    "facts_index_size": { "type": "integer" }
+  }
+}

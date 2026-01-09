@@ -6,8 +6,7 @@ Merges same-topic multi-version entries into a structured single entry.
 from typing import Any, Dict, List, Tuple, TYPE_CHECKING
 import re
 
-if TYPE_CHECKING:
-    from src.graph.state_v2 import GlobalState
+from src.graph.state_v2 import GlobalState
 
 VERSION_PATTERNS = [
     re.compile(r"\b(?:v|ver|version)\s*([0-9]+(?:\.[0-9]+){0,2})\b", re.IGNORECASE),
@@ -153,6 +152,4 @@ def timeline_merge_node(state: "GlobalState") -> Dict[str, Any]:
     """
     timeline = state.get("timeline", []) or []
     merged = merge_timeline_entries(timeline)
-    if merged == timeline:
-        return {}
     return {"timeline": merged}

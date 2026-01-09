@@ -1,0 +1,22 @@
+{
+  "report_id": "rpt_hard_002",
+  "run_id": "test_hard_002",
+  "generated_at": "2026-01-06T12:05:00Z",
+  "sections": [
+    {
+      "section_id": "sec_summary",
+      "title": "Executive Summary",
+      "items": [
+        {
+          "item_id": 1,
+          "item_text": "It has been confirmed that misconduct occurred, despite ongoing disputes.",
+          "role": "key_claim",
+          "event_ids": ["evt_001", "evt_002"],
+          "assertion_strength": "hedged",
+          "dispute_status": "disputed",
+          "conflict_group_id": "conflict_001"
+        }
+      ]
+    }
+  ]
+}

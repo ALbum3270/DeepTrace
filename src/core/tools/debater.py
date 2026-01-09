@@ -4,7 +4,18 @@ Resolves conflicts in research findings using an LLM Judge.
 """
 
 from typing import List
-from langchain.chat_models import init_chat_model
+try:
+    from langchain.chat_models import init_chat_model  # type: ignore
+except ImportError:
+    from langchain_openai import ChatOpenAI  # type: ignore
+    from src.config.settings import settings
+    def init_chat_model(model: str, temperature=0, model_provider=None, **kwargs):
+        return ChatOpenAI(
+            model=model,
+            openai_api_key=settings.openai_api_key,
+            openai_api_base=settings.openai_base_url,
+            temperature=temperature,
+        )
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool

@@ -1,0 +1,16 @@
+{
+  "summary": {
+    "hard": 1,
+    "soft": 0,
+    "warn": 0
+  },
+  "violations": [
+    {
+      "severity": "HARD",
+      "rule_id": "event_id_not_in_facts_index",
+      "item_id": 1,
+      "details": "event_ids not in facts_index: ['evt_999_nonexistent']"
+    }
+  ],
+  "facts_index_size": 1
+}

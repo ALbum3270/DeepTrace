@@ -1,0 +1,48 @@
+{
+  "run_id": "test_pass_001",
+  "generated_at": "2026-01-06T12:00:00Z",
+  "facts": [
+    {
+      "event_id": "evt_001",
+      "title": "Product Launch Announcement",
+      "topic": "tech",
+      "date": "2026-01-05",
+      "evidences": [
+        {
+          "url": "https://official.example.com/blog/launch",
+          "evidence_quote": "We are excited to announce...",
+          "credibility_tier": "official",
+          "retrieval_ts": "2026-01-06T10:00:00Z"
+        }
+      ]
+    },
+    {
+      "event_id": "evt_002",
+      "title": "Media Coverage",
+      "topic": "tech",
+      "date": "2026-01-05",
+      "evidences": [
+        {
+          "url": "https://reputable-media.com/tech/coverage",
+          "evidence_quote": "According to industry sources...",
+          "credibility_tier": "reputable_media",
+          "retrieval_ts": "2026-01-06T10:30:00Z"
+        }
+      ]
+    },
+    {
+      "event_id": "evt_003",
+      "title": "Social Media Reaction",
+      "topic": "tech",
+      "date": "2026-01-05",
+      "evidences": [
+        {
+          "url": "https://social.example.com/post/12345",
+          "evidence_quote": "This looks promising...",
+          "credibility_tier": "social",
+          "retrieval_ts": "2026-01-06T11:00:00Z"
+        }
+      ]
+    }
+  ]
+}

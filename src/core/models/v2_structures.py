@@ -27,11 +27,11 @@ class ExtractionResult(BaseModel):
 
 class ClarificationResult(BaseModel):
     """Clarification decision for the initial query."""
-    needs_clarification: bool = Field(description="Whether the query is ambiguous.")
-    clarified_objective: str = Field(description="Refined objective to use for research.")
+    needs_clarification: bool = Field(description="Whether to show research direction options.")
+    clarified_objective: str = Field(description="Default refined objective if user doesn't choose.")
     confirmation_message: str = Field(
-        description="User-facing confirmation of the chosen scope."
+        description="Brief explanation of what the 3 options cover."
     )
-    questions: List[str] = Field(
-        default_factory=list, description="Clarifying questions to ask the user."
+    research_directions: List[str] = Field(
+        default_factory=list, description="3 alternative research direction options (A, B, C)."
     )

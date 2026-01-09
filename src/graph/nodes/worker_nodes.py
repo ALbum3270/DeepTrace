@@ -8,7 +8,18 @@ import re
 import logging
 from langchain_core.messages import AIMessage, SystemMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
-from langchain.chat_models import init_chat_model
+try:
+    from langchain.chat_models import init_chat_model  # type: ignore
+except ImportError:
+    from langchain_openai import ChatOpenAI  # type: ignore
+    from src.config.settings import settings
+    def init_chat_model(model: str, temperature=0, model_provider=None, **kwargs):
+        return ChatOpenAI(
+            model=model,
+            openai_api_key=settings.openai_api_key,
+            openai_api_base=settings.openai_base_url,
+            temperature=temperature,
+        )
 try:
     from langchain_openai import ChatOpenAI
 except ImportError:
@@ -247,15 +258,47 @@ async def extract_node_v2(state: WorkerState, config: RunnableConfig):
     from langchain_core.output_parsers import PydanticOutputParser
     parser = PydanticOutputParser(pydantic_object=ExtractionResult)
 
+    # Extract candidate URLs to constrain source_url choices (improves grounding + parse success)
+    url_pattern = re.compile(r"https?://[\w\-._~:/?#\[\]@!$&'()*+,;=%]+", re.IGNORECASE)
+    available_urls = list(dict.fromkeys([u.rstrip(")].,>\"' ") for u in url_pattern.findall(search_content)]))
+    url_hint = ""
+    if available_urls:
+        url_hint = "Available URLs (use one of these for source_url):\n" + "\n".join(available_urls[:40]) + "\n\n"
+
     # 4. Invoke
     prompt = [
-        SystemMessage(content=EXTRACTION_SYSTEM_PROMPT + "\n\n" + parser.get_format_instructions()),
-        HumanMessage(content=f"Here are the search results:\n{search_content[:20000]}") # Limit context to avoid overflow
+        SystemMessage(
+            content=(
+                EXTRACTION_SYSTEM_PROMPT
+                + "\n\nReturn JSON only. "
+                + parser.get_format_instructions()
+            )
+        ),
+        HumanMessage(
+            content=(
+                f"{url_hint}Here are the search results:\n{search_content[:20000]}"
+            )
+        ),  # Limit context to avoid overflow
     ]
     
     try:
         response = await safe_ainvoke(llm, prompt, model_name=model_name)
-        result: ExtractionResult = parser.parse(response.content)
+        try:
+            result: ExtractionResult = parser.parse(response.content)
+        except Exception:
+            # One repair attempt: ask for JSON only
+            repair_prompt = [
+                SystemMessage(
+                    content=(
+                        "Your previous output could not be parsed. "
+                        "Output ONLY valid JSON that matches the schema.\n\n"
+                        + parser.get_format_instructions()
+                    )
+                ),
+                HumanMessage(content=f"{url_hint}Search results:\n{search_content[:20000]}"),
+            ]
+            response = await safe_ainvoke(llm, repair_prompt, model_name=model_name)
+            result = parser.parse(response.content)
         
         # 5. Format Output for Pipeline
         event_lines = []
@@ -268,18 +311,31 @@ async def extract_node_v2(state: WorkerState, config: RunnableConfig):
                 f"{ev.title} {ev.description} {ev.source_url}", required_tokens
             ):
                 continue
-            cred = evaluate_credibility(ev.source_url)
-            if cred.score < 70:
+            # Require a real URL to establish grounding (Phase 0)
+            if not ev.source_url or str(ev.source_url).strip().lower() in {"unknown", "n/a", "none"}:
                 continue
 
-            line = f"[EVENT] {norm_date} | {ev.title} | {ev.description} (Source: {ev.source_url})"
+            cred = evaluate_credibility(ev.source_url)
+            title = ev.title
+            description = ev.description
+            # Keep low-cred sources but mark them as disputed/unverified instead of dropping everything.
+            if cred.score < 70:
+                if not str(title).lower().startswith("[disputed]"):
+                    title = f"[Disputed] {title}"
+                if "low-credibility source" not in (description or "").lower():
+                    description = (description or "").strip()
+                    description = f"{description} (Low-credibility source; treat as unverified.)".strip()
+
+            line = f"[EVENT] {norm_date} | {title} | {description} (Source: {ev.source_url})"
             event_lines.append(line)
             timeline_entries.append(
                 {
                     "date": norm_date,
-                    "title": ev.title,
-                    "description": ev.description,
+                    "title": title,
+                    "description": description,
                     "source": ev.source_url,
+                    "credibility_score": cred.score,
+                    "credibility_tier": cred.source_type,
                 }
             )
 

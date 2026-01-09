@@ -1,29 +1,18 @@
 from ..state import GraphState
-from ...fetchers.mock_fetcher import MockFetcher
 from ...config.settings import settings, EVIDENCE_DEPTH_MODES
 
 # 根据配置动态选择 Fetcher
 def _get_fetcher():
     """根据 FETCHER_MODE 配置选择合适的 Fetcher"""
-    if settings.fetcher_mode == "mock":
-        print("[INFO] Using MockFetcher (forced by FETCHER_MODE=mock)")
-        return MockFetcher()
-    
-    elif settings.fetcher_mode == "serpapi":
-        if not settings.serpapi_key:
-            raise RuntimeError("FETCHER_MODE=serpapi but SERPAPI_KEY is empty")
+    if settings.fetcher_mode not in {"auto", "serpapi"}:
+        raise RuntimeError(f"Unsupported FETCHER_MODE={settings.fetcher_mode}, expected auto/serpapi")
+
+    if settings.serpapi_key:
         from ...fetchers.serpapi_fetcher import SerpAPIFetcher
-        print("[INFO] Using SerpAPIFetcher (forced by FETCHER_MODE=serpapi)")
+        print("[INFO] Using SerpAPIFetcher (SERPAPI_KEY detected)")
         return SerpAPIFetcher()
-    
-    else:  # auto mode
-        if settings.serpapi_key:
-            from ...fetchers.serpapi_fetcher import SerpAPIFetcher
-            print("[INFO] Using SerpAPIFetcher (auto: SERPAPI_KEY detected)")
-            return SerpAPIFetcher()
-        else:
-            print("[WARN] No SERPAPI_KEY, using MockFetcher (auto mode)")
-            return MockFetcher()
+
+    raise RuntimeError("No SERPAPI_KEY configured; mock/offline fetchers are disabled.")
 
 from ...fetchers.content_scraper import ContentScraper
 import asyncio

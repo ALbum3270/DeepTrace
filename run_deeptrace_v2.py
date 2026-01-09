@@ -33,29 +33,139 @@ logger = logging.getLogger("DeepTrace")
 if sys.platform.startswith("win"):
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, SystemMessage
+try:
+    from langchain.chat_models import init_chat_model  # type: ignore
+except ImportError:
+    from langchain_openai import ChatOpenAI  # type: ignore
+    def init_chat_model(model: str, temperature=0, model_provider=None, **kwargs):
+        return ChatOpenAI(
+            model=model,
+            temperature=temperature,
+            openai_api_key=settings.openai_api_key,
+            openai_api_base=settings.openai_base_url,
+        )
 from src.graph.graph_v2 import app_v2
 from src.config.settings import settings
 from src.core.utils.topic_filter import extract_tokens
-from src.graph.nodes.clarify import interactive_clarify
+from src.core.utils.llm_safety import safe_ainvoke
+
+
+def _resolve_suggestion_model() -> str:
+    """
+    Choose a small model for suggestion generation; fall back to a known OpenAI alias.
+    """
+    candidate = settings.model_name or ""
+    # If provider prefix is present, keep it; otherwise use a lightweight default.
+    if candidate and ":" in candidate:
+        return candidate
+    return "gpt-4o-mini"
+
+
+async def _llm_suggest_directions(query: str, model_name: str) -> list[str]:
+    """
+    Ask a small LLM to propose 3 optional research directions (A/B/C) without changing the objective.
+    """
+    system = "You propose research focus options. Output exactly 3 options labeled A), B), C). Keep them short."
+    user = f"""User query: "{query}"
+Generate three alternative research directions (A/B/C). Each should be 5-15 words, focused and distinct.
+Do NOT answer the query; only list the options."""
+    
+    llm = None
+    actual_model = model_name
+    # Check if using custom OpenAI-compatible endpoint (e.g., Dashscope for Qwen)
+    if settings.openai_base_url and "openai.com" not in settings.openai_base_url:
+        from langchain_openai import ChatOpenAI
+        # Use settings.model_name for custom endpoints, not the passed model_name
+        actual_model = settings.model_name or model_name
+        try:
+            llm = ChatOpenAI(
+                model=actual_model,
+                openai_api_key=settings.openai_api_key,
+                openai_api_base=settings.openai_base_url,
+                temperature=0,
+            )
+        except Exception:
+            llm = None
+    
+    if llm is None:
+        tried = []
+        for candidate in [model_name, "gpt-4o-mini", "gpt-4o"]:
+            if not candidate:
+                continue
+            tried.append(candidate)
+            try:
+                llm = init_chat_model(model=candidate, temperature=0)
+                actual_model = candidate
+                break
+            except Exception:
+                llm = None
+                continue
+        if llm is None:
+            logger.warning(f"⚠️ Suggestion LLM init failed for {tried}; skipping directions.")
+            return []
+    try:
+        resp = await safe_ainvoke(llm, [SystemMessage(content=system), HumanMessage(content=user)], model_name=actual_model)
+        lines = [ln.strip() for ln in (resp.content or "").splitlines() if ln.strip()]
+        options = []
+        for ln in lines:
+            # accept formats like "A) xxx" or "A. xxx"
+            if ln[0:1].upper() in {"A", "B", "C"}:
+                # strip leading label
+                parts = ln.split(")", 1) if ")" in ln[:3] else ln.split(".", 1)
+                if len(parts) == 2:
+                    ln = parts[1].strip()
+            options.append(ln)
+            if len(options) >= 3:
+                break
+        # fallback: if parsing failed, return original lines or empty
+        return options[:3]
+    except Exception:
+        return []
+
+
+def _select_direction(query: str, directions: list[str]) -> str:
+    """
+    Interactive selection: A/B/C or 1/2/3 to choose a direction; Enter keeps original query.
+    """
+    if not directions:
+        return query
+    if not sys.stdin or not sys.stdin.isatty():
+        return query
+    labels = ["A", "B", "C"]
+    logger.info("\n[💡 可选研究方向 - 默认继续用原始问题]")
+    for idx, d in enumerate(directions, 0):
+        label = labels[idx] if idx < len(labels) else f"{idx+1}"
+        logger.info(f"   [{label}] {d}")
+    logger.info(f"\n   [Enter] 使用原始查询: {query}")
+    choice = input("请选择 [A/B/C] 或直接回车: ").strip().lower()
+    if not choice:
+        return query
+    mapping = {"a": 0, "b": 1, "c": 2, "1": 0, "2": 1, "3": 2}
+    if choice in mapping and mapping[choice] < len(directions):
+        return directions[mapping[choice]]
+    return query
+
 
 async def run_deeptrace(query: str):
     logger.info(f"🚀 Starting DeepTrace V2 | Query: {query}")
     logger.info("==================================================")
     
-    clarified_query, tokens, clarify_logs = await interactive_clarify(
-        query, {"configurable": {"clarify_model": settings.model_name or "gpt-4o"}}
-    )
-    if clarified_query != query:
-        logger.info(f"✓ Clarified Query: {clarified_query}")
-    for entry in clarify_logs:
-        logger.info(f"📋 Clarify: {entry}")
+    # Skip LLM-based clarification; keep the original query and simple token extraction.
+    suggestion_model = _resolve_suggestion_model()
+    directions = await _llm_suggest_directions(query, suggestion_model)
+    clarified_query = _select_direction(query, directions)
+    tokens = extract_tokens(clarified_query) or extract_tokens(query) or ["research"]
+    logger.info(f"🔑 Required Tokens: {tokens}")
 
     initial_state = {
         "original_query": query,
+        "run_id": str(uuid.uuid4()),
+        "run_record_path": "",
         "objective": clarified_query,
         "clarification_done": True,
         "research_brief": f"Research goal: {clarified_query}",
+        "enabled_policies_snapshot": {},
         "timeline": [],
         "research_notes": [],
         "investigation_log": [],
@@ -68,7 +178,7 @@ async def run_deeptrace(query: str):
         "required_tokens": tokens,
     }
     
-    config = {"configurable": {"thread_id": str(uuid.uuid4())}, "recursion_limit": 50}
+    config = {"configurable": {"thread_id": str(uuid.uuid4())}, "recursion_limit": 20}
     
     final_output = None
     
@@ -126,8 +236,7 @@ async def run_deeptrace(query: str):
 
 if __name__ == "__main__":
     # You can change the query here
-    # TARGET_QUERY = "DeepSeek V3 vs DeepSeek R1 参数对比 (Parameter Comparison)"
-    TARGET_QUERY = "OpenAI GPT-5 official release date and key features verified"
+    TARGET_QUERY = "OpenAI GPT-5 release"
     
     if not os.getenv("TAVILY_API_KEY"):
         logger.warning("⚠️  TAVILY_API_KEY missing. Search may fail.")

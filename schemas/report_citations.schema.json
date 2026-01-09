@@ -1,0 +1,19 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "report_citations",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": ["item_id", "item_text", "role", "event_ids", "assertion_strength", "dispute_status"],
+    "properties": {
+      "section_id": { "type": "string" },
+      "item_id": { "type": "integer" },
+      "item_text": { "type": "string" },
+      "role": { "type": "string", "enum": ["key_claim", "support", "analysis"] },
+      "event_ids": { "type": "array", "items": { "type": "string" } },
+      "assertion_strength": { "type": "string", "enum": ["hedged", "neutral", "strong"] },
+      "dispute_status": { "type": "string", "enum": ["none", "disputed", "unresolved_conflict"] },
+      "conflict_group_id": { "type": ["string", "null"] }
+    }
+  }
+}
